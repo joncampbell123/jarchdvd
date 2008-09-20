@@ -1,0 +1,39 @@
+BUILDING JARCHDVD FOR MAC OS X
+
+NOTE: This has only been tested with 10.4.0 "Tiger". Results
+      may vary in earlier versions.
+
+1. Go to the "utilities" section and run the Terminal
+   application.
+2. Unpack this tarball somewhere.
+3. Type "make clean". DO NOT USE "make" the default Makefile
+   is geared to assume Linux!
+4. Type "./build-macosx". This will run a shell script that
+   runs "make" using an alternate Makefile designed
+   specifically for Mac OS X and the IOKit framework.
+5. Type "sudo make install". This will install jarchdvd
+   to your /usr/bin directory so that you can use it anywhere
+   (as can any user).
+
+Under Linux and Windows running JarchDVD is as simple
+as CDing to the directory that you want to rip the data to.
+Unfortunately MacOS X is a little too automated with the
+system resources to make it this easy, so here is how you
+do it:
+
+1. Bring up the Terminal program (under utilities)
+2. Insert the DVD you want to rip (if not done already)
+3. Type "diskutil list" to list all mounted drives. Look
+   for the DVD in the list (on my Mac Mini this is shown
+   as disk1)
+4. Type "diskutil unmount disk1". The icon for the DVD
+   should disappear from your desktop.
+5. CD to the directory that you want to rip to and
+   run JarchDVD. If Mac OS X truly unmounted the drive
+   JarchDVD should have no problems ripping the disc.
+
+NOTE: The instant JarchDVD finishes or is terminated,
+      Mac OS X will almost immediately remount the DVD
+      and the icon will reappear on your desktop. To
+      re-rip or finish ripping start from step 4 again.
+
