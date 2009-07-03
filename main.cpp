@@ -54,6 +54,7 @@ static double			rip_assume_rate=0.0;
 static int			rip_expandfill=0;
 static int			rip_backwards_from_outermost=0;
 static int			rip_cmi=0;
+static int			rip_assume=0;
 static int			rip_backwards=0;
 static int			force_genpoi=0;
 static int			force_authpoi=0;
@@ -135,6 +136,14 @@ int params(int argc,char **argv)
 			/* -noskip */
 			else if (!strncmp(p,"noskip",6)) {
 				rip_noskip=1;
+			}
+			/* -4gb */
+			else if (!strncmp(p,"4gb",3)) {
+				rip_assume=(4720000000/2048);
+			}
+			/* -8gb */
+			else if (!strncmp(p,"8gb",3)) {
+				rip_assume=(8600000000/2048);
 			}
 			/* -rate */
 			else if (!strncmp(p,"rate",4)) {
@@ -453,6 +462,15 @@ int main(int argc,char **argv)
 		if (!css_decrypt_inplace && !show_todo) {
 			// Use various MMC commands to examine the DVD-ROM media!
 			GatherMediaInfo(&session);
+
+			if (rip_assume > 0) {
+				session.DVD_capacity = rip_assume;
+
+				for (i=0;i < 32;i++)
+					session.todo->set(TODO_RIPDVD_CAPACITY_DWORD+i,(session.DVD_capacity >> i) & 1);
+
+				session.todo->set(TODO_RIPDVD_READCAPACITY,1);
+			}
 
 			// get a disc key for the DVD-ROM drive. this retrieves the disc key
 			// and unlocks "protected" sectors so we can rip them (as-is, encrypted).
