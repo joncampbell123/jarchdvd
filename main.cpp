@@ -139,11 +139,11 @@ int params(int argc,char **argv)
 			}
 			/* -4gb */
 			else if (!strncmp(p,"4gb",3)) {
-				rip_assume=(4720000000/2048);
+				rip_assume=(4720000000LL/2048);
 			}
 			/* -8gb */
 			else if (!strncmp(p,"8gb",3)) {
-				rip_assume=(8600000000/2048);
+				rip_assume=(8600000000LL/2048);
 			}
 			/* -rate */
 			else if (!strncmp(p,"rate",4)) {
