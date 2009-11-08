@@ -291,7 +291,9 @@ void RipDVD(JarchSession *session)
 	prep = 0;
 	isect = cur;
 	buf = session->bdev->buffer();
-	rd = rdmax = session->bdev->buffersize();
+	rdmax = session->bdev->buffersize();
+	if (rdmax > 16) rdmax = 16;
+	rd = rdmax;
 	lastend = cur;
 	
 	if (session->rip_backwards) {
