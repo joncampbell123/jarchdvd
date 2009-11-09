@@ -6,7 +6,14 @@
 #include <errno.h>
 #include <fcntl.h>
 
+#define NO_FRAGSIZE	0xFFFFFFFF
+
 static char *ImgDirHeader = "JDVD2IMGD";
+
+#if defined(__i386__) || defined(__powerpc__)
+long long lseek64(int fd,long long where,int whence);
+int ftruncate64(int fd,long long where);
+#endif
 
 LargeSplitImage::frag::frag()
 {
@@ -23,6 +30,7 @@ LargeSplitImage::frag::~frag()
 
 LargeSplitImage::LargeSplitImage()
 {
+	iso_fd = -1;
 	fragsize = 0;
 	bname = NULL;
 	sitrks = 0;
@@ -81,7 +89,11 @@ int LargeSplitImage::open(char *basename)
 
 			lseek(fd,0,SEEK_SET);
 			::write(fd,ImgDirHeader,9);
+#if 0
 			::write(fd,LeHe32bin(512<<20),4);	// fragment size is 512MB
+#else
+			::write(fd,LeHe32bin(NO_FRAGSIZE),4);	// no fragments
+#endif
 			::write(fd,LeHe32bin(0),4);		// current max size is 0
 			::write(fd,LeHe32bin(0),4);		// stored as 64-bit int
 		}
@@ -112,11 +124,24 @@ int LargeSplitImage::open(char *basename)
 	}
 
 	fragsize = binLeHe32((unsigned char*)(tmp+9));
-	bitch(BITCHINFO,"Fragment size is %u bytes (%uMB)",fragsize,fragsize>>20);
-	if (fragsize < 1024 || fragsize > (512<<20)) {
-		bitch_unindent();
-		close();
-		return -1;
+	no_fragments = (fragsize == NO_FRAGSIZE);
+	if (no_fragments) {
+		bitch(BITCHINFO,"No fragments");
+
+		if ((iso_fd = ::open64("dvd-rip-image.iso",O_RDWR | O_CREAT | O_BINARY,0644)) < 0) {
+			bitch(BITCHERROR,"Cannot open rip image");
+			bitch_unindent();
+			close();
+			return -1;
+		}
+	}
+	else {
+		bitch(BITCHINFO,"Fragment size is %u bytes (%uMB)",fragsize,fragsize>>20);
+		if (fragsize < 1024 || fragsize > (512<<20)) {
+			bitch_unindent();
+			close();
+			return -1;
+		}
 	}
 
 	max_pos  =  (juint64)binLeHe32(tmp + 13);
@@ -149,6 +174,11 @@ int LargeSplitImage::close()
 		bname = NULL;
 	}
 
+	if (iso_fd >= 0) {
+		::close(iso_fd);
+		iso_fd = -1;
+	}
+
 	if (fd >= 0) {
 		::close(fd);
 		fd = -1;
@@ -174,6 +204,15 @@ int LargeSplitImage::read(unsigned char *buf,int l)
 
 	if (fragsize == 0 || fd < 0 || l < 0) return 0;
 	if (current_pos >= max_pos) return 0;
+
+	if (no_fragments) {
+		long long p = ::lseek64(iso_fd,current_pos,SEEK_SET);
+		if (p != current_pos) return 0;
+		int rd = ::read(iso_fd,buf,l);
+		if (rd < 0) rd = 0;
+		current_pos += rd;
+		return rd;
+	}
 
 	n64 = ((juint64)max_pos) - ((juint64)current_pos);
 	if (n64 >= ((juint64)l)) n64 = (juint64)l;
@@ -267,6 +306,19 @@ int LargeSplitImage::write(unsigned char *buf,int l)
 	int rr;
 
 	if (fragsize == 0 || fd < 0 || l < 0) return 0;
+
+	if (no_fragments) {
+		long long p = ::lseek64(iso_fd,current_pos,SEEK_SET);
+		if (p < current_pos) {
+			if (::ftruncate64(iso_fd,current_pos) < 0) return 0;
+			p = ::lseek64(iso_fd,current_pos,SEEK_SET);
+		}
+		if (p != current_pos) return 0;
+		int rd = ::write(iso_fd,buf,l);
+		if (rd < 0) rd = 0;
+		current_pos += rd;
+		return rd;
+	}
 
 	p = l;
 	while (p > 0) {

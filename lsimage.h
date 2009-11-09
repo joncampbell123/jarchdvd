@@ -27,6 +27,8 @@ private:
 	juint64		current_pos;
 	juint64		max_pos;
 	unsigned long	fragsize;
+	int		no_fragments;
+	int		iso_fd;
 	char*		bname;
 	int		sitrks;
 	frag**		sitr;
