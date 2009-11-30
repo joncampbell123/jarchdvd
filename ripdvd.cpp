@@ -977,6 +977,8 @@ void DecryptDVD(JarchSession *session)
 	while (cur < full) {
 		curt = time(NULL);
 
+		bitch(BITCHINFO,"sector %u",cur);
+
 		/* look for a ripped sector */
 		while (cur < full && !dvdmap.get(cur)) cur++;
 		if (cur >= full) break;
