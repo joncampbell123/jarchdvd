@@ -8,10 +8,12 @@ clean:
 	rm -f *.ncb *.opt *.plg *.ilk
 
 install: jarchdvd2
-	cp jarchdvd2 /usr/bin/
-	cp jarchdvdkeys /usr/bin/
-	cp jarchdvd2.1 /usr/man/man1/
-	cp jarchdvdkeys.1 /usr/man/man1/
+	mkdir -p $(ROOT)/usr/bin/
+	cp jarchdvd2 $(ROOT)/usr/bin/
+	cp jarchdvdkeys $(ROOT)/usr/bin/
+	mkdir -p $(ROOT)/usr/man/man1
+	cp jarchdvd2.1 $(ROOT)/usr/man/man1/
+	cp jarchdvdkeys.1 $(ROOT)/usr/man/man1/
 
 OBJLIST = bitchin.o blockio_iokit.o blockio_ntscsi.o blockio_std.o blockio_packet.o blockio_sg.o main.o util.o keystore.o rippedmap.o lsimage.o mediagather.o css-auth.o css-cipher.o dvd-auth.o ripdvd.o ripdvd_dvdvideo.o udf.o
 
