@@ -71,7 +71,7 @@ public:
 	public:
 		unsigned char*	enumfirst();
 		unsigned char*	enumnext();
-		int		find(char *name,char dir);
+		int		find(const char *name,char dir);
 		dir*		get(unsigned char *ent);
 	public:
 		UDFshortad	dirext;

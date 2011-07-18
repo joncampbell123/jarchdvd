@@ -293,7 +293,7 @@ unsigned short int utilbinLeHe16(unsigned char *x);
 #define binLeHe16(x)		utilbinLeHe16(x)
 #define binBeHe16(x)		utilbinBeHe16(x)
 
-char *YesNo(int x);
+const char *YesNo(int x);
 
 #ifdef WIN32
 typedef unsigned char byte;

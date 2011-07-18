@@ -14,7 +14,7 @@
 #include "bitchin.h"
 #include "main.h"
 
-static char *BITCHCLASSES[] = {
+static const char *BITCHCLASSES[] = {
 	"",			// DUMMY
 	":<ERROR>:  ",
 	":<WARNING>:",
@@ -26,7 +26,7 @@ static FILE*	bitchfp = NULL;
 static int	bitchlevel = 0;
 static char	bitchlevel_sp[128];
 
-void bitch(int CLASS,char *fmt,...)
+void bitch(int CLASS,const char *fmt,...)
 {
 	va_list va;
 

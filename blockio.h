@@ -8,7 +8,7 @@ class JarchBlockIO
 {
 public:
 	// required
-	virtual int			open(char *name) = 0;
+	virtual int			open(const char *name) = 0;
 	virtual int			close() = 0;
 	virtual unsigned char*		buffer() = 0;
 	virtual int			buffersize() = 0;

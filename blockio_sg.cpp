@@ -35,7 +35,7 @@ public:
 					~JarchBlockIO_SG();
 public:
         // required
-	virtual int                     open(char *name);
+	virtual int                     open(const char *name);
 	virtual int                     close();
 	virtual unsigned char*          buffer();
 	virtual int                     buffersize();
@@ -117,9 +117,9 @@ int JarchBlockIO_SG::atapi_read(juint64 sector,unsigned char *buf,int N)
 	return N;
 }
 
-int JarchBlockIO_SG::open(char *given_name)
+int JarchBlockIO_SG::open(const char *given_name)
 {
-	char *name;
+	const char *name;
 
 	if (dev_fd >= 0)
 		close();

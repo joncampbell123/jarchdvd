@@ -314,7 +314,7 @@ unsigned char* UDFfs::dir::enumnext()
 	return dirent;
 }
 
-int UDFfs::dir::find(char *name,char dir)
+int UDFfs::dir::find(const char *name,char dir)
 {
 	unsigned char *sector,*sm;
 	unsigned char flags;

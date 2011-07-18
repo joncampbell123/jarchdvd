@@ -261,7 +261,7 @@ int params(int argc,char **argv)
 
 void bitchTODO(JarchSession *session)
 {
-	char *YN[] = {"  .  ","--X--"};
+	const char *YN[] = {"  .  ","--X--"};
 	RippedMap* r = session->todo;
 
 	bitch(BITCHINFO,"JarchDVD's TODO list thus far:");

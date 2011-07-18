@@ -8,30 +8,35 @@
 #include <fcntl.h>
 
 // state of last session
-char *strSOLS[4] = {	"empty",		"incomplete",
+const char *strSOLS[4] = {
+			"empty",		"incomplete",
 			"reserved/damaged",	"complete"};
 
 // disc status
-char *strDS[4] = {	"empty",		"incomplete",
+const char *strDS[4] = {	
+			"empty",		"incomplete",
 			"finalized",		"random access only"};
 
 // background format status
-char *strBGS[4] = {	"none",					"background format started but not complete",
+const char *strBGS[4] = {
+			"none",					"background format started but not complete",
 			"background format in progress",	"background formatting complete"};
 
 // Linear density field
-char *strLinDen[16] = {	"0.267 um/bit",		"0.293 um/bit",		"0.409-0.435 um/bit",	"unknown (3)",
+const char *strLinDen[16] = {	
+			"0.267 um/bit",		"0.293 um/bit",		"0.409-0.435 um/bit",	"unknown (3)",
 			"0.280-0.291 um/bit",	"unknown (5)",		"unknown (6)",		"unknown (7)",
 			"0.353 um/bit",		"unknown (9)",		"unknown (10)",		"unknown (11)",
 			"unknown (12)",		"unknown (13)",		"unknown (14)",		"unknown (15)"};
 
 // Track density field
-char *strTrkDen[16] = {	"0.74 um/track",	"0.80 um/track",	"0.615 um/track",	"unknown",
+const char *strTrkDen[16] = {
+			"0.74 um/track",	"0.80 um/track",	"0.615 um/track",	"unknown",
 			"unknown",		"unknown",		"unknown",		"unknown",
 			"unknown",		"unknown",		"unknown",		"unknown",
 			"unknown",		"unknown",		"unknown",		"unknown"};
 
-char *strDiscType(unsigned char x)
+const char *strDiscType(unsigned char x)
 {
 	if (x == 0x00)		return "CD-DA or CD-ROM disc";
 	else if (x == 0x10)	return "CD-I disc";
@@ -41,7 +46,7 @@ char *strDiscType(unsigned char x)
 }
 
 // book type
-char *strBT(unsigned char x)
+const char *strBT(unsigned char x)
 {
 	if (x == 0x00)		return "DVD-ROM";
 	if (x == 0x01)		return "DVD-RAM";
@@ -53,14 +58,14 @@ char *strBT(unsigned char x)
 }
 
 // disc size code
-char *strDscSz(unsigned char x)
+const char *strDscSz(unsigned char x)
 {
 	if (x == 0x0)		return "120mm";
 	if (x == 0x1)		return "80mm";
 	return "unknown";
 }
 
-char *strMaxRt(unsigned char x)
+const char *strMaxRt(unsigned char x)
 {
 	if (x == 0x0)		return "2.52 mbps";
 	if (x == 0x1)		return "5.04 mbps";
@@ -69,14 +74,14 @@ char *strMaxRt(unsigned char x)
 	return "unknown";
 }
 
-char *strTrkPth(unsigned char x)
+const char *strTrkPth(unsigned char x)
 {
 	if (x)	return "Parallel Track Path";
 	return "Opposite Track Path";
 }
 
 static char __strLayTypTmp[140];
-char *strLayTyp(unsigned char x)
+const char *strLayTyp(unsigned char x)
 {
 	x &= 7;
 	if (x == 0) return "Not writable";
@@ -88,7 +93,7 @@ char *strLayTyp(unsigned char x)
 	return __strLayTypTmp;
 }
 
-char *strCPST(unsigned char x)
+const char *strCPST(unsigned char x)
 {
 	if (x == 0x00)	return "none";
 	if (x == 0x01)	return "CSS/CPPM";
@@ -96,7 +101,7 @@ char *strCPST(unsigned char x)
 	return "unknown";
 }
 
-char *DVDRegionName[8] = {
+const char *DVDRegionName[8] = {
 	"United States of America, Canada",
 	"Japan, Europe, South Africa, Middle East, Greenland",
 	"South Korea, Taiwan, Hong Kong, Parts of South East Asia",
@@ -118,8 +123,8 @@ static void GatherDiscInfo(JarchSession *session)
 
 	memset(cmd,0,12);
 	cmd[ 0] = 0x51;	// READ DISC INFO
-	cmd[ 7] = sizeof(buf) >> 8;
-	cmd[ 8] = sizeof(buf);
+	cmd[ 7] = (unsigned char)(sizeof(buf) >> 8);
+	cmd[ 8] = (unsigned char)sizeof(buf);
 
 	memset(buf,0,2052);
 	if (session->bdev->scsi(cmd,9,buf,2052,1) < 0) {
@@ -187,8 +192,8 @@ void GatherDVDInfo00(JarchSession *session)
 	cmd[ 5] = 0x00;		// address
 	cmd[ 6] = 0;		// layer 0
 	cmd[ 7] = 0x00;		// format 0: physical format info
-	cmd[ 8] = sizeof(buf) >> 8;
-	cmd[ 9] = sizeof(buf);
+	cmd[ 8] = (unsigned char)(sizeof(buf) >> 8);
+	cmd[ 9] = (unsigned char)sizeof(buf);
 	cmd[10] = 0;
 	cmd[11] = 0;
 
@@ -311,8 +316,8 @@ void GatherDVDInfo03(JarchSession *session)
 	cmd[ 5] = 0;
 	cmd[ 6] = 0;
 	cmd[ 7] = 0x03;	// read BCA
-	cmd[ 8] = sizeof(buf) >> 8;
-	cmd[ 9] = sizeof(buf);
+	cmd[ 8] = (unsigned char)(sizeof(buf) >> 8);
+	cmd[ 9] = (unsigned char)sizeof(buf);
 	cmd[10] = 0x00;
 	cmd[11] = 0x00;
 	if (session->bdev->scsi(cmd,12,buf,sizeof(buf),1) < 0) {
@@ -356,8 +361,8 @@ void GatherDVDInfo04(JarchSession *session)
 		cmd[ 5] = 0;
 		cmd[ 6] = layer;
 		cmd[ 7] = 0x04; // read disc manufacturing data
-		cmd[ 8] = sizeof(buf) >> 8;
-		cmd[ 9] = sizeof(buf);
+		cmd[ 8] = (unsigned char)(sizeof(buf) >> 8);
+		cmd[ 9] = (unsigned char)sizeof(buf);
 		cmd[10] = 0x00;
 		cmd[11] = 0x00;
 		if (session->bdev->scsi(cmd,12,buf,sizeof(buf),1) < 0) {
@@ -395,8 +400,8 @@ void GatherDVDInfo08(JarchSession *session)
 	cmd[ 5] = 0;
 	cmd[ 6] = 0;
 	cmd[ 7] = 0x08;	// read DVD-RAM disc definition structure
-	cmd[ 8] = sizeof(buf) >> 8;
-	cmd[ 9] = sizeof(buf);
+	cmd[ 8] = (unsigned char)(sizeof(buf) >> 8);
+	cmd[ 9] = (unsigned char)sizeof(buf);
 	cmd[10] = 0x00;
 	cmd[11] = 0x00;
 	if (session->bdev->scsi(cmd,12,buf,sizeof(buf),1) < 0) {
@@ -431,8 +436,8 @@ void GatherDVDInfo09(JarchSession *session)
 	cmd[ 5] = 0;
 	cmd[ 6] = 0;
 	cmd[ 7] = 0x09; // read DVD-RAM medium status
-	cmd[ 8] = sizeof(buf) >> 8;
-	cmd[ 9] = sizeof(buf);
+	cmd[ 8] = (unsigned char)(sizeof(buf) >> 8);
+	cmd[ 9] = (unsigned char)sizeof(buf);
 	cmd[10] = 0x00;
 	cmd[11] = 0x00;
 	if (session->bdev->scsi(cmd,12,buf,sizeof(buf),1) < 0) {
@@ -467,8 +472,8 @@ void GatherDVDInfo0A(JarchSession *session)
 	cmd[ 5] = 0;
 	cmd[ 6] = 0;
 	cmd[ 7] = 0x0A; // read spare area info
-	cmd[ 8] = sizeof(buf) >> 8;
-	cmd[ 9] = sizeof(buf);
+	cmd[ 8] = (unsigned char)(sizeof(buf) >> 8);
+	cmd[ 9] = (unsigned char)sizeof(buf);
 	cmd[10] = 0x00;
 	cmd[11] = 0x00;
 	if (session->bdev->scsi(cmd,12,buf,sizeof(buf),1) < 0) {

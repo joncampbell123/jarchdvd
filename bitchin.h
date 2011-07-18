@@ -10,7 +10,7 @@ enum {
 	BITCHINFO,
 };
 
-void bitch(int CLASS,char *fmt,...);
+void bitch(int CLASS,const char *fmt,...);
 void bitch_init(FILE *outfp);
 void bitch_indent();
 void bitch_unindent();

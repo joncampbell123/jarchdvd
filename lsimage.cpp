@@ -8,7 +8,7 @@
 
 #define NO_FRAGSIZE	0xFFFFFFFF
 
-static char *ImgDirHeader = "JDVD2IMGD";
+static const char *ImgDirHeader = "JDVD2IMGD";
 
 #if defined(__i386__) || defined(__powerpc__)
 long long lseek64(int fd,long long where,int whence);
@@ -43,7 +43,7 @@ LargeSplitImage::~LargeSplitImage()
 	close();
 }
 
-int LargeSplitImage::open(char *basename)
+int LargeSplitImage::open(const char *basename)
 {
 	unsigned char tmp[280];
 	int l;

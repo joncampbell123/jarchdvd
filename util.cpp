@@ -70,7 +70,7 @@ unsigned short int utilbinBeHe16(unsigned char *buf)
 	return x;
 }
 
-char *YesNo(int x)
+const char *YesNo(int x)
 {
 	if (x)	return "yes";
 	else	return "no";

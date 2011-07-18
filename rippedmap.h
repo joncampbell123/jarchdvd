@@ -9,7 +9,7 @@ public:
 	RippedMap();
 	~RippedMap();
 public:
-	int		open(char *name);
+	int		open(const char *name);
 	int		close();
 	int		getsize();
 	int		set(int N,int val);

@@ -24,7 +24,7 @@ public:
 	KeyStorage();
 	~KeyStorage();
 public:
-	int		open(char *name);
+	int		open(const char *name);
 	int		close();
 	int		addkey(unsigned long sector,unsigned char *key);	// where key is 8 bytes long
 	int		setroot(unsigned int N);

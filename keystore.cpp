@@ -7,7 +7,7 @@
 #include <fcntl.h>
 #include <errno.h>
 
-static char* KeyHeader = "JKeys100";
+static const char* KeyHeader = "JKeys100";
 
 KeyStorage::KeyStorage()
 {
@@ -20,7 +20,7 @@ KeyStorage::~KeyStorage()
 	close();
 }
 
-int KeyStorage::open(char *name)
+int KeyStorage::open(const char *name)
 {
 	unsigned char b[16];
 	int sz,r;

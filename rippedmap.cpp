@@ -19,9 +19,9 @@ RippedMap::~RippedMap()
 	close();
 }
 
-static char* RipMapSig = "JRipMap1";
+static const char* RipMapSig = "JRipMap1";
 
-int RippedMap::open(char *name)
+int RippedMap::open(const char *name)
 {
 	unsigned char buf[16];
 

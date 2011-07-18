@@ -17,7 +17,7 @@ public:
 	LargeSplitImage();
 	~LargeSplitImage();
 public:
-	int		open(char *basename);
+	int		open(const char *basename);
 	int		close();
 	juint64		seek(juint64 ofs);
 	int		read(unsigned char *buf,int l);
