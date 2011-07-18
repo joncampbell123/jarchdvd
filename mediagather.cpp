@@ -36,6 +36,28 @@ const char *strTrkDen[16] = {
 			"unknown",		"unknown",		"unknown",		"unknown",
 			"unknown",		"unknown",		"unknown",		"unknown"};
 
+// profile
+const char *strProfile(unsigned short x)
+{
+	if (x == 0x0008)	return "CD-ROM";
+	else if (x == 0x0009)	return "CD-R";
+	else if (x == 0x000A)	return "CD-RW";
+	else if (x == 0x0010)	return "DVD-ROM";
+	else if (x == 0x0011)	return "DVD sequential recording";
+	else if (x == 0x0012)	return "DVD-RAM";
+	else if (x == 0x0013)	return "DVD-RW restricted overwrite";
+	else if (x == 0x0014)	return "DVD-RW sequential recording";
+	else if (x == 0x0015)	return "DVD-R DL sequential recording";
+	else if (x == 0x0016)	return "DVD-R DL jump recording";
+	else if (x == 0x0017)	return "DVD-RW dual layer";
+	else if (x == 0x0018)	return "DVD-Download disc recording";
+	else if (x == 0x001A)	return "DVD+RW";
+	else if (x == 0x001B)	return "DVD+R";
+	else if (x == 0x002A)	return "DVD+RW dual layer";
+	else if (x == 0x002B)	return "DVD+R dual layer";
+	return "?";
+}
+
 const char *strDiscType(unsigned char x)
 {
 	if (x == 0x00)		return "CD-DA or CD-ROM disc";
@@ -120,6 +142,35 @@ static void GatherDiscInfo(JarchSession *session)
 
 	bitch(BITCHINFO,"Getting Disc Information");
 	bitch_indent();
+
+	/* First: get the media profile. The reason is that we could be used to rip a CD-ROM
+	 * though that is not ideal because CD-ROM discs could contain non-data and would show
+	 * up as a "DVD" with sector errors. If we know it's not DVD-ROM we can print a
+	 * warning message for the user that says "Hey! This is a CD. Use JarchCD to rip this!" */
+	memset(cmd,0,12);
+	cmd[ 0] = 0x46; // GET CONFIGURATION
+	cmd[ 7] = (unsigned char)(sizeof(buf) >> 8);
+	cmd[ 8] = (unsigned char)sizeof(buf);
+	memset(buf,0,2052);
+	if (session->bdev->scsi(cmd,10,buf,2052,1) >= 0) {
+		unsigned short profile =
+			((unsigned short)buf[6] << 8) |
+			 (unsigned short)buf[7];
+
+		bitch(BITCHINFO,"Disc profile: 0x%04x (%s)",profile,strProfile(profile));
+		if (profile >= 0x0008 && profile <= 0x000A) {
+			bitch(BITCHWARNING,"    You're ripping a CD. This program is designed for DVD");
+			bitch(BITCHWARNING,"    media where all data is in 2048 byte sectors.");
+			bitch(BITCHWARNING,"    This program may happen to work if the CD contains only");
+			bitch(BITCHWARNING,"    Mode 1 data sectors, however audio and Mode 2 sectors");
+			bitch(BITCHWARNING,"    are unreadable in this program. You are advised to use");
+			bitch(BITCHWARNING,"    JarchCD to rip this disc.");
+			sleep(5);
+		}
+	}
+	else {
+		bitch(BITCHWARNING,"Unable to gather disc configuration (failed to send SCSI command)");
+	}
 
 	memset(cmd,0,12);
 	cmd[ 0] = 0x51;	// READ DISC INFO

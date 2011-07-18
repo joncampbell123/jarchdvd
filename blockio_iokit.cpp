@@ -1,6 +1,9 @@
 /* low-level blockio code for jarchdvd.
  * Uses the Mac OS X IOKit */
 
+/* TODO: Rewrite this! Pull out that Mac Mini of yours to test and develop with! */
+/*       Update with the same changes you made to the Linux SG and PACKET drivers */
+
 #include <sys/stat.h>
 #include <sys/types.h>
 #ifdef LINUX

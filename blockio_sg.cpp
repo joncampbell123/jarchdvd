@@ -6,52 +6,15 @@
 #include "config.h"
 #include <sys/stat.h>
 #include <sys/types.h>
-#ifdef LINUX
-#include <sys/ioctl.h>
-#include <scsi/sg.h>
-#include <signal.h>
-#include <unistd.h>
-#include <fcntl.h>
-#endif
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
 #include <time.h>
 #include "blockio.h"
+#include "blockio_sg.h"
 #include "bitchin.h"
 #include "config.h"
-
-#if READ_METHOD == READ_METHOD_SG
-
-#ifndef LINUX
-#error READ_METHOD_PACKET is supported only by Linux!
-#endif
-
-class JarchBlockIO_SG : public JarchBlockIO
-{
-public:
-					JarchBlockIO_SG();
-					~JarchBlockIO_SG();
-public:
-        // required
-	virtual int                     open(const char *name);
-	virtual int                     close();
-	virtual unsigned char*          buffer();
-	virtual int                     buffersize();
-	virtual int                     seek(juint64 s);
-	virtual int                     read(int n);
-	// optional
-	virtual int                     fd();
-	virtual int                     scsi(unsigned char *cmd,int cmdlen,unsigned char *data,int datalen,int dir);
-	// dir: 0=none, 1=read, 2=write
-private:
-	int				atapi_read(juint64 sector,unsigned char *buf,int N);
-	int				dev_fd;
-	int				alloc_sectors;
-	unsigned char*			alloc_buffer;
-	juint64				next_sector;
-};
 
 JarchBlockIO_SG::JarchBlockIO_SG()
 {
@@ -111,6 +74,7 @@ int JarchBlockIO_SG::atapi_read(juint64 sector,unsigned char *buf,int N)
 	if (sg.resid > 0) {
 		N = sg.dxfer_len - sg.resid;
 		if (N < 0) N = 0;
+		if (N & (2048 - 1)) bitch(BITCHWARNING,"Read returned data not a multiple of sector size");
 		N >>= 11;
 	}
 
@@ -241,7 +205,12 @@ int JarchBlockIO_SG::scsi(unsigned char *cmd,int cmdlen,unsigned char *data,int 
 	if (sense[2] & 0xF)
 		return -1;
 
-	return 0;
+	if (sg.resid > sg.dxfer_len) {
+		bitch(BITCHWARNING,"SG ioctl residual is greater than total data transfer");
+		sg.resid = sg.dxfer_len;
+	}
+
+	return sg.dxfer_len - sg.resid;
 }
 
 int JarchBlockIO_SG::fd()
@@ -249,10 +218,8 @@ int JarchBlockIO_SG::fd()
 	return dev_fd;
 }
 
-// interface to the rest of the program
-JarchBlockIO* blockiodefault()
-{
-	return new JarchBlockIO_SG;
+unsigned char* JarchBlockIO_SG::get_last_sense(size_t *size) {
+	if (size != NULL) *size = 0;
+	return NULL;
 }
 
-#endif //READ_METHOD

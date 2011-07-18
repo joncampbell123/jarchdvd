@@ -41,6 +41,10 @@
 #include "ripdvd.h"
 #include "dvd-auth.h"
 
+#include <string>
+
+using namespace std;
+
 static FILE*			chosen_bitch_out;
 static char			chosen_bitch_out_fname[256];
 static char			chosen_input_block_dev[256];
@@ -63,6 +67,7 @@ static int			css_decrypt_inplace=0;
 static int			show_todo=0;
 static int			poi_dumb=0;
 static int			singlesector=0;
+static string			driver_name;
 // test modes are:
 //   0 = no test
 //   1 = KeyStorage test
@@ -106,6 +111,20 @@ int params(int argc,char **argv)
 					i++;
 					if (i < argc)	strcpy(chosen_input_block_dev,argv[i]);
 					else		bitch(BITCHERROR,"-dev requires another argument");
+				}
+			}
+			/* -driver <name>
+			 * -driver=<name> */
+			else if (!strncmp(p,"driver",6)) {
+				p += 6;
+				if (*p == '=') {
+					p++;
+					driver_name = p;
+				}
+				else {
+					i++;
+					if (i < argc)	driver_name = argv[i];
+					else		bitch(BITCHERROR,"-driver requires another argument");
 				}
 			}
 			/* -bout <file>
@@ -228,6 +247,10 @@ int params(int argc,char **argv)
 #else
 				bitch(BITCHINFO,"-dev <device>               Specify which device to use, default: /dev/dvd");
 #endif
+				bitch(BITCHINFO,"-driver <name>              Use a specific driver for ripping");
+				bitch(BITCHINFO,"    Linux:");
+				bitch(BITCHINFO,"         linux_sg           SG ioctl method");
+				bitch(BITCHINFO,"         linux_packet       CDROM packet ioctl method");
 				bitch(BITCHINFO,"-bout <file>                Log output to <file>, append if exists");
 				bitch(BITCHINFO,"-test-keystore              DIAGNOSTIC: Test KeyStorage code");
 				bitch(BITCHINFO,"-info                       Gather media info, even if already done");
@@ -362,8 +385,8 @@ int main(int argc,char **argv)
 	bitch_init(chosen_bitch_out);
 	
 	bitch(BITCHINFO,"+----------------- <<< NEW SESSION >>> --------------------+");
-	bitch(BITCHINFO,"| JarchDVD DVD-ROM archiving utility v2.0 New and Improved |");
-	bitch(BITCHINFO,"| Version v2.000 beta release 05-05-2005                   |");
+	bitch(BITCHINFO,"| JarchDVD DVD-ROM archiving utility v2.1 New and Improved |");
+	bitch(BITCHINFO,"| Version v2.1 release 07-17-2011                          |");
 	bitch(BITCHINFO,"+----------------------------------------------------------+");
 #ifdef WIN32
 	bitch(BITCHINFO,"Operating system................... Microsoft Windows");
@@ -390,7 +413,7 @@ int main(int argc,char **argv)
 	else {
 		// now get the default blockio object IF not -decss
 		if (!css_decrypt_inplace) {
-			chosen_bio = blockiodefault();
+			chosen_bio = blockiodefault(driver_name.length() != 0 ? driver_name.c_str() : NULL);
 			if (!chosen_bio) {
 				bitch(BITCHERROR,"Unable to obtain default JarchBlockIO object");
 				return 1;

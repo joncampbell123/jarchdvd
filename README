@@ -1,5 +1,14 @@
 JarchDVD 2.0 README
 
+7/18/2011 update:
+
+  This code is now also updated to carry a rewritten version of JarchCD.
+  This means the one package now carries CD, and DVD ripping capabilities.
+  For shell script use, the package also now carries a program that
+  identifies the disc type (to stdout) and another program the shell script
+  can use to wait until the drive is ready (since, apparently, Linux kernel
+  won't wait for ready).
+
 Why 2.0?
 
   Initially JarchDVD was written to rip the video content of DVDs.
