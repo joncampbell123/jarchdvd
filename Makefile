@@ -15,7 +15,7 @@ install: jarchdvd2
 	cp jarchdvd2.1 $(ROOT)/usr/man/man1/
 	cp jarchdvdkeys.1 $(ROOT)/usr/man/man1/
 
-OBJLIST = bitchin.o blockio.o blockio_iokit.o blockio_ntscsi.o blockio_std.o blockio_packet.o blockio_sg.o main.o util.o keystore.o rippedmap.o lsimage.o mediagather.o css-auth.o css-cipher.o dvd-auth.o ripdvd.o ripdvd_dvdvideo.o udf.o
+OBJLIST = bitchin.o blockio.o blockio_iokit.o blockio_ntscsi.o blockio_std.o blockio_packet.o blockio_sg.o jarchdvd.o util.o keystore.o rippedmap.o lsimage.o mediagather.o css-auth.o css-cipher.o dvd-auth.o ripdvd.o ripdvd_dvdvideo.o udf.o
 
 jarchdvd2: $(OBJLIST)
 	g++ -o jarchdvd2 $(OBJLIST)
@@ -29,8 +29,8 @@ jarchdvdkeys.o: jarchdvdkeys.cpp
 util.o: util.cpp
 	g++ $(CFLAGS) -c -o util.o util.cpp
 
-main.o: main.cpp
-	g++ $(CFLAGS) -c -o main.o main.cpp
+jarchdvd.o: jarchdvd.cpp
+	g++ $(CFLAGS) -c -o jarchdvd.o jarchdvd.cpp
 
 bitchin.o: bitchin.cpp
 	g++ $(CFLAGS) -c -o bitchin.o bitchin.cpp

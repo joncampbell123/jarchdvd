@@ -3,7 +3,7 @@
 #include "mediagather.h"
 #include "bitchin.h"
 #include "todolist.h"
-#include "main.h"
+#include "jarchdvd.h"
 #include <string.h>
 #include <fcntl.h>
 

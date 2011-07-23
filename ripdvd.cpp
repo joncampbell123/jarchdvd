@@ -1,6 +1,6 @@
 
 #include "ripdvd.h"
-#include "main.h"
+#include "jarchdvd.h"
 #include "rippedmap.h"
 #include "todolist.h"
 #include "keystore.h"

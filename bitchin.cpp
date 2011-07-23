@@ -12,7 +12,7 @@
 #include <errno.h>
 #include "blockio.h"
 #include "bitchin.h"
-#include "main.h"
+#include "jarchdvd.h"
 
 static const char *BITCHCLASSES[] = {
 	"",			// DUMMY

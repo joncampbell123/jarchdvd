@@ -6,7 +6,7 @@
 #include "rippedmap.h"
 #include "lsimage.h"
 #include "keystore.h"
-#include "main.h"
+#include "jarchdvd.h"
 
 void RipDVD(JarchSession *session);
 void RipCMI(JarchSession *session);

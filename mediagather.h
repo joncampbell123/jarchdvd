@@ -6,7 +6,7 @@
 #include "rippedmap.h"
 #include "blockio.h"
 #include "todolist.h"
-#include "main.h"
+#include "jarchdvd.h"
 
 void GatherMediaInfo(JarchSession *session);
 
