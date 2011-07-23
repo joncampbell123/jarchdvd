@@ -159,6 +159,7 @@ int LargeSplitImage::open(const char *basename)
 
 	max_pos  =  (juint64)binLeHe32(tmp + 13);
 	max_pos |= ((juint64)binLeHe32(tmp + 17)) << ((juint64)32);
+	update_max();
 
 	current_pos = 0;
 	bitch(BITCHINFO,"Maximum byte offset is " PRINT64F,max_pos);
@@ -220,7 +221,10 @@ int LargeSplitImage::read(unsigned char *buf,int l)
 
 	if (no_fragments) {
 		long long p = ::lseek64(iso_fd,current_pos,SEEK_SET);
-		if (p != current_pos) return 0;
+		if (p != current_pos) {
+			fprintf(stderr,"lseek(%lld) = %lld\n",current_pos,p);
+			return 0;
+		}
 		int rd = ::read(iso_fd,buf,l);
 		if (rd < 0) rd = 0;
 		current_pos += rd;
