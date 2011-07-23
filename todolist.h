@@ -34,5 +34,15 @@
 #define TODO_GENPOI_DVDVIDEO			402
 #define TODO_AUTHPOI				410
 
+
+
+
+
+
+
+#define TODO_RIPCD				300	// DVD ripping done
+#define TODO_RIPCD_READCAPACITY			301	// has obtained DVD-ROM capacity
+#define TODO_RIPCD_CAPACITY_DWORD		350	// 32 bits starting here, number of sectors on DVD
+
 #endif
 

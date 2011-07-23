@@ -6,6 +6,8 @@
 #include <errno.h>
 #include <fcntl.h>
 
+#include <string>
+
 #define NO_FRAGSIZE	0xFFFFFFFF
 
 static const char *ImgDirHeader = "JDVD2IMGD";
@@ -128,11 +130,22 @@ int LargeSplitImage::open(const char *basename)
 	if (no_fragments) {
 		bitch(BITCHINFO,"No fragments");
 
-		if ((iso_fd = ::open64("dvd-rip-image.iso",O_RDWR | O_CREAT | O_BINARY,0644)) < 0) {
-			bitch(BITCHERROR,"Cannot open rip image");
-			bitch_unindent();
-			close();
-			return -1;
+		if (!strcmp(basename,"dvdrom-image")) {
+			if ((iso_fd = ::open64("dvd-rip-image.iso",O_RDWR | O_CREAT | O_BINARY,0644)) < 0) {
+				bitch(BITCHERROR,"Cannot open rip image");
+				bitch_unindent();
+				close();
+				return -1;
+			}
+		}
+		else {
+			std::string nam = std::string(basename) + ".bin";
+			if ((iso_fd = ::open64(nam.c_str(),O_RDWR | O_CREAT | O_BINARY,0644)) < 0) {
+				bitch(BITCHERROR,"Cannot open rip image");
+				bitch_unindent();
+				close();
+				return -1;
+			}
 		}
 	}
 	else {

@@ -30,6 +30,7 @@ private:
 	int				alloc_sectors;
 	unsigned char*			alloc_buffer;
 	juint64				next_sector;
+	unsigned char			sense[32];
 };
 
 #endif

@@ -1,24 +1,29 @@
-all: jarchdvd2 jarchdvdkeys config.h
+all: jarchcd2 jarchdvd2 jarchdvdkeys config.h
 
 CFLAGS = -DLINUX
 
 clean:
-	rm -f *.exe *.o jarchdvd2 jarchdvdkeys
+	rm -f *.exe *.o jarchcd2 jarchdvd2 jarchdvdkeys
 	rm -f -R Debug Release "Debug WNASPI32" "Release WNASPI32"
 	rm -f *.ncb *.opt *.plg *.ilk
 
 install: jarchdvd2
 	mkdir -p $(ROOT)/usr/bin/
+	cp jarchcd2 $(ROOT)/usr/bin/
 	cp jarchdvd2 $(ROOT)/usr/bin/
 	cp jarchdvdkeys $(ROOT)/usr/bin/
 	mkdir -p $(ROOT)/usr/man/man1
 	cp jarchdvd2.1 $(ROOT)/usr/man/man1/
 	cp jarchdvdkeys.1 $(ROOT)/usr/man/man1/
 
-OBJLIST = bitchin.o blockio.o blockio_iokit.o blockio_ntscsi.o blockio_std.o blockio_packet.o blockio_sg.o jarchdvd.o util.o keystore.o rippedmap.o lsimage.o mediagather.o css-auth.o css-cipher.o dvd-auth.o ripdvd.o ripdvd_dvdvideo.o udf.o
+JARCHCD_OBJLIST = bitchin.o blockio.o blockio_iokit.o blockio_ntscsi.o blockio_std.o blockio_packet.o blockio_sg.o jarchcd.o util.o rippedmap.o lsimage.o
+JARCHDVD_OBJLIST = bitchin.o blockio.o blockio_iokit.o blockio_ntscsi.o blockio_std.o blockio_packet.o blockio_sg.o jarchdvd.o util.o keystore.o rippedmap.o lsimage.o mediagather.o css-auth.o css-cipher.o dvd-auth.o ripdvd.o ripdvd_dvdvideo.o udf.o
 
-jarchdvd2: $(OBJLIST)
-	g++ -o jarchdvd2 $(OBJLIST)
+jarchcd2: $(JARCHCD_OBJLIST)
+	g++ -o jarchcd2 $(JARCHCD_OBJLIST)
+
+jarchdvd2: $(JARCHDVD_OBJLIST)
+	g++ -o jarchdvd2 $(JARCHDVD_OBJLIST)
 
 jarchdvdkeys: jarchdvdkeys.o keystore.o bitchin.o util.o
 	g++ -o jarchdvdkeys jarchdvdkeys.o keystore.o bitchin.o util.o
@@ -28,6 +33,9 @@ jarchdvdkeys.o: jarchdvdkeys.cpp
 
 util.o: util.cpp
 	g++ $(CFLAGS) -c -o util.o util.cpp
+
+jarchcd.o: jarchcd.cpp
+	g++ $(CFLAGS) -c -o jarchcd.o jarchcd.cpp
 
 jarchdvd.o: jarchdvd.cpp
 	g++ $(CFLAGS) -c -o jarchdvd.o jarchdvd.cpp

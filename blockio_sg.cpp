@@ -171,11 +171,13 @@ int JarchBlockIO_SG::seek(juint64 s)
 
 int JarchBlockIO_SG::scsi(unsigned char *cmd,int cmdlen,unsigned char *data,int datalen,int dir)
 {
-	unsigned char sense[32];
 	struct sg_io_hdr sg;
 	int length,returned;
 
-	if (dev_fd < 0) return -1;
+	if (dev_fd < 0) {
+		bitch(BITCHERROR,"SG_IO BUG: called when dev_fd < 0 (not open)");
+		return -1;
+	}
 
 	// a way for the caller to determine if we support this method
 	if (cmd == NULL || cmdlen <= 0)
@@ -200,10 +202,10 @@ int JarchBlockIO_SG::scsi(unsigned char *cmd,int cmdlen,unsigned char *data,int 
 	else if (dir == 2)	sg.dxfer_direction = SG_DXFER_TO_DEV;
 	else			sg.dxfer_direction = SG_DXFER_NONE;
 
-	if (ioctl(dev_fd,SG_IO,(void*)(&sg)) < 0)
+	if (ioctl(dev_fd,SG_IO,(void*)(&sg)) < 0) {
+		bitch(BITCHWARNING,"SG_IO ioctl failed errno %s",strerror(errno));
 		return -1;
-	if (sense[2] & 0xF)
-		return -1;
+	}
 
 	if (sg.resid > sg.dxfer_len) {
 		bitch(BITCHWARNING,"SG ioctl residual is greater than total data transfer");
@@ -219,7 +221,7 @@ int JarchBlockIO_SG::fd()
 }
 
 unsigned char* JarchBlockIO_SG::get_last_sense(size_t *size) {
-	if (size != NULL) *size = 0;
-	return NULL;
+	if (size != NULL) *size = sizeof(sense);
+	return sense;
 }
 
