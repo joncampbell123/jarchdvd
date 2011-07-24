@@ -1501,7 +1501,10 @@ void RipCD(JarchSession *session)
 									}
 								}
 								else {
-									bitch(BITCHWARNING,"Absolute M:S:F mismatch");
+									bitch(BITCHWARNING,"Absolute M:S:F mismatch %02x:%02x:%02x should be %02u:%02u:%02u",
+										q[7],q[8],q[9],
+										exp_msf[0],exp_msf[1],exp_msf[2]);
+									ok = 0;
 								}
 							}
 						}
