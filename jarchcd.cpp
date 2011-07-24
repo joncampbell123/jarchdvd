@@ -40,9 +40,123 @@
 #include "rippedmap.h"
 #include "todolist.h"
 
+#include <stdint.h>
 #include <string>
 
 using namespace std;
+
+const unsigned char zero4[4] = {0,0,0,0};
+
+static uint32_t get32lsb(const uint8_t* src) {
+    return
+        (((uint32_t)(src[0])) <<  0) |
+        (((uint32_t)(src[1])) <<  8) |
+        (((uint32_t)(src[2])) << 16) |
+        (((uint32_t)(src[3])) << 24);
+}
+
+static void put32lsb(uint8_t* dest, uint32_t value) {
+    dest[0] = (uint8_t)(value      );
+    dest[1] = (uint8_t)(value >>  8);
+    dest[2] = (uint8_t)(value >> 16);
+    dest[3] = (uint8_t)(value >> 24);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// LUTs used for computing ECC/EDC
+//
+static uint8_t  ecc_f_lut[256];
+static uint8_t  ecc_b_lut[256];
+static uint32_t edc_lut  [256];
+
+static void eccedc_init(void) {
+    size_t i;
+    for(i = 0; i < 256; i++) {
+        uint32_t edc = i;
+        size_t j = (i << 1) ^ (i & 0x80 ? 0x11D : 0);
+        ecc_f_lut[i] = j;
+        ecc_b_lut[i ^ j] = i;
+        for(j = 0; j < 8; j++) {
+            edc = (edc >> 1) ^ (edc & 1 ? 0xD8018001 : 0);
+        }
+        edc_lut[i] = edc;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// Check ECC block (either P or Q)
+// Returns true if the ECC data is an exact match
+//
+static int8_t ecc_checkpq(
+    const uint8_t* address,
+    const uint8_t* data,
+    size_t major_count,
+    size_t minor_count,
+    size_t major_mult,
+    size_t minor_inc,
+    const uint8_t* ecc
+) {
+    size_t size = major_count * minor_count;
+    size_t major;
+    for(major = 0; major < major_count; major++) {
+        size_t index = (major >> 1) * major_mult + (major & 1);
+        uint8_t ecc_a = 0;
+        uint8_t ecc_b = 0;
+        size_t minor;
+        for(minor = 0; minor < minor_count; minor++) {
+            uint8_t temp;
+            if(index < 4) {
+                temp = address[index];
+            } else {
+                temp = data[index - 4];
+            }
+            index += minor_inc;
+            if(index >= size) { index -= size; }
+            ecc_a ^= temp;
+            ecc_b ^= temp;
+            ecc_a = ecc_f_lut[ecc_a];
+        }
+        ecc_a = ecc_b_lut[ecc_f_lut[ecc_a] ^ ecc_b];
+        if(
+            ecc[major              ] != (ecc_a        ) ||
+            ecc[major + major_count] != (ecc_a ^ ecc_b)
+        ) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+//
+// Check ECC P and Q codes for a sector
+// Returns true if the ECC data is an exact match
+//
+static int8_t ecc_checksector(
+    const uint8_t *address,
+    const uint8_t *data,
+    const uint8_t *ecc
+) {
+    return
+        ecc_checkpq(address, data, 86, 24,  2, 86, ecc) &&      // P
+        ecc_checkpq(address, data, 52, 43, 86, 88, ecc + 0xAC); // Q
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// Compute EDC for a block
+//
+static uint32_t edc_compute(
+    uint32_t edc,
+    const uint8_t* src,
+    size_t size
+) {
+    for(; size; size--) {
+        edc = (edc >> 8) ^ edc_lut[(edc ^ (*src++)) & 0xFF];
+    }
+    return edc;
+}
 
 static FILE*			chosen_bitch_out;
 static char			chosen_bitch_out_fname[256];
@@ -764,6 +878,7 @@ void RipCD(JarchSession *session)
 	}
 	else if (session->rip_verify) {
 		unsigned char sector[RAWSEC];
+		unsigned long chk;
 		juint64 ofs;
 
 		curt = prep = time(NULL);
@@ -824,62 +939,21 @@ void RipCD(JarchSession *session)
 								}
 								break;
 							case 1:	/* Mode 1 data (2048) */
-								memset(cmd,0,12);
-								cmd[ 0] = 0xB9;
-								cmd[ 1] = (2 << 2);	/* expected sector type=2 DAP=0 */
-								CD2MSFnb(cmd+3,cur);
-								CD2MSFnb(cmd+6,cur+1);
-								cmd[ 9] = 0x10;		/* user area only */
-								cmd[10] = 0;
-								if (session->bdev->scsi(cmd,12,buf,2048,1) < 2048 || (sense=session->bdev->get_last_sense(NULL)) == NULL) {
-									bitch(BITCHINFO,"Cannot seek to sector %u!",cur);
+								/* check one: does the data have the correct EDC+ECC? */
+								chk = edc_compute(0,sector,2048+16);
+								if (chk != get32lsb(sector+2048+16)) {
+									fprintf(stderr,"Sector %lu [Mode1]: EDC checksum failed. 0x%08lx != 0x%08lx\n",cur,chk,get32lsb(sector+2048+16));
+									dvdmap.set(cur,0);
 								}
-								else if ((sense[2]&0xF) != 0) {
-									bitch(BITCHINFO,"Sector %lu returned sense code %u",cur,sense[2]&0xF);
-								}
-								else if (memcmp(buf,sector+16,2048)) {
-									bitch(BITCHINFO,"Mode 1 verification: data differs %lu",cur);
+								else if (!ecc_checksector(sector+0xC,sector+0x10,sector+0x81C)) {
+									fprintf(stderr,"Sector %lu [Mode1]: ECC check failed\n",cur);
 									dvdmap.set(cur,0);
 								}
 								else {
-									dvdmap.set(cur,1);
-								}
-								break;
-							case 2: /* Mode 2 */
-								/* look at the subheader. Mode 2 form 1, or Mode 2 form 2? */
-								if (memcmp(sector+16,sector+20,4)) {
-									bitch(BITCHINFO,"Mode 2 sector, subheaders don't match %lu",cur);
-//									dvdmap.set(cur,0);
-								}
-								else if (sector[16+2] & 0x20) { /* Mode 2 form 2 */
+									/* Okay good. Now: if we re-read the sector using the proper mode, does the drive return the same data? */
 									memset(cmd,0,12);
 									cmd[ 0] = 0xB9;
-									cmd[ 1] = (5 << 2);	/* expected sector type=5 DAP=0 */
-									CD2MSFnb(cmd+3,cur);
-									CD2MSFnb(cmd+6,cur+1);
-									cmd[ 9] = 0x10;		/* user area only */
-									cmd[10] = 0;
-									/* FIXME: Uhhhhh so if I say the buffer is 2324 bytes long then the drive fails reading with sense key == 7,
-									 *        even though the returned data is 2324 bytes long? */
-									if (session->bdev->scsi(cmd,12,buf,2352,1) < 2324 || (sense=session->bdev->get_last_sense(NULL)) == NULL) {
-										bitch(BITCHINFO,"Cannot seek to sector %u!",cur);
-									}
-									else if ((sense[2]&0xF) != 0) {
-										bitch(BITCHINFO,"Sector %lu returned sense code %u (Mode 2 Form 2)",cur,sense[2]&0xF);
-									}
-									else if (memcmp(buf,sector+24,2324)) {
-										bitch(BITCHINFO,"Mode 2 Form 2 verification: data differs %lu",cur);
-										dvdmap.set(cur,0);
-									}
-									else {
-//										bitch(BITCHINFO,"Mode 2 Form 2 works %lu",cur);
-										dvdmap.set(cur,1);
-									}
-								}
-								else { /* Mode 2 Form 1 */
-									memset(cmd,0,12);
-									cmd[ 0] = 0xB9;
-									cmd[ 1] = (4 << 2);	/* expected sector type=4 DAP=0 */
+									cmd[ 1] = (2 << 2);	/* expected sector type=2 DAP=0 */
 									CD2MSFnb(cmd+3,cur);
 									CD2MSFnb(cmd+6,cur+1);
 									cmd[ 9] = 0x10;		/* user area only */
@@ -890,12 +964,87 @@ void RipCD(JarchSession *session)
 									else if ((sense[2]&0xF) != 0) {
 										bitch(BITCHINFO,"Sector %lu returned sense code %u",cur,sense[2]&0xF);
 									}
-									else if (memcmp(buf,sector+24,2048)) {
-										bitch(BITCHINFO,"Mode 2 Form 1 verification: data differs %lu",cur);
+									else if (memcmp(buf,sector+16,2048)) {
+										bitch(BITCHINFO,"Mode 1 verification: data differs %lu",cur);
 										dvdmap.set(cur,0);
 									}
 									else {
 										dvdmap.set(cur,1);
+									}
+								}
+								break;
+							case 2: /* Mode 2 */
+								/* look at the subheader. Mode 2 form 1, or Mode 2 form 2? */
+								if (memcmp(sector+16,sector+20,4)) {
+									bitch(BITCHINFO,"Mode 2 sector, subheaders don't match %lu",cur);
+									dvdmap.set(cur,0);
+								}
+								else if (sector[16+2] & 0x20) { /* Mode 2 form 2 */
+									/* does the EDC check out? */
+									chk = edc_compute(0,sector+16,2332);
+									if (chk != get32lsb(sector+16+2332)) {
+										fprintf(stderr,"Sector %lu [Mode2Form2]: EDC checksum failed. 0x%08lx != 0x%08lx\n",cur,chk,get32lsb(sector+16+2332));
+										dvdmap.set(cur,0);
+									}
+									else {
+										/* does the drive return the same data? */
+										memset(cmd,0,12);
+										cmd[ 0] = 0xB9;
+										cmd[ 1] = (5 << 2);	/* expected sector type=5 DAP=0 */
+										CD2MSFnb(cmd+3,cur);
+										CD2MSFnb(cmd+6,cur+1);
+										cmd[ 9] = 0x10;		/* user area only */
+										cmd[10] = 0;
+										/* FIXME: Uhhhhh so if I say the buffer is 2324 bytes long then the drive fails reading with sense key == 7,
+										 *        even though the returned data is 2324 bytes long? */
+										if (session->bdev->scsi(cmd,12,buf,2352,1) < 2324 || (sense=session->bdev->get_last_sense(NULL)) == NULL) {
+											bitch(BITCHINFO,"Cannot seek to sector %u!",cur);
+										}
+										else if ((sense[2]&0xF) != 0) {
+											bitch(BITCHINFO,"Sector %lu returned sense code %u (Mode 2 Form 2)",cur,sense[2]&0xF);
+										}
+										else if (memcmp(buf,sector+24,2324)) {
+											bitch(BITCHINFO,"Mode 2 Form 2 verification: data differs %lu",cur);
+											dvdmap.set(cur,0);
+										}
+										else {
+											dvdmap.set(cur,1);
+										}
+									}
+								}
+								else { /* Mode 2 Form 1 */
+									/* do the EDC+ECC check out? */
+									chk = edc_compute(0,sector+16,2048+8);
+									if (chk != get32lsb(sector+16+2048+8)) {
+										fprintf(stderr,"Sector %lu [Mode2Form1]: EDC checksum failed. 0x%08lx != 0x%08lx\n",cur,chk,get32lsb(sector+16+2048+8));
+										dvdmap.set(cur,0);
+									}
+									else if (!ecc_checksector(zero4,sector+16,sector+16+0x80C)) {
+										fprintf(stderr,"Sector %lu [Mode2Form1]: ECC check failed\n",cur);
+										dvdmap.set(cur,0);
+									}
+									else {
+										/* does the drive return the same data? */
+										memset(cmd,0,12);
+										cmd[ 0] = 0xB9;
+										cmd[ 1] = (4 << 2);	/* expected sector type=4 DAP=0 */
+										CD2MSFnb(cmd+3,cur);
+										CD2MSFnb(cmd+6,cur+1);
+										cmd[ 9] = 0x10;		/* user area only */
+										cmd[10] = 0;
+										if (session->bdev->scsi(cmd,12,buf,2048,1) < 2048 || (sense=session->bdev->get_last_sense(NULL)) == NULL) {
+											bitch(BITCHINFO,"Cannot seek to sector %u!",cur);
+										}
+										else if ((sense[2]&0xF) != 0) {
+											bitch(BITCHINFO,"Sector %lu returned sense code %u",cur,sense[2]&0xF);
+										}
+										else if (memcmp(buf,sector+24,2048)) {
+											bitch(BITCHINFO,"Mode 2 Form 1 verification: data differs %lu",cur);
+											dvdmap.set(cur,0);
+										}
+										else {
+											dvdmap.set(cur,1);
+										}
 									}
 								}
 								break;

@@ -3,9 +3,9 @@
 #include <stdint.h>
 #include <unistd.h>
 
-const unsigned char zero4[4] = {0,0,0,0};
-
 unsigned char sector[2352];
+
+const unsigned char zero4[4] = {0,0,0,0};
 
 static uint32_t get32lsb(const uint8_t* src) {
     return
