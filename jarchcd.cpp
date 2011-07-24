@@ -1359,6 +1359,15 @@ void RipCD(JarchSession *session)
 	bitch(BITCHINFO,"Now trying to recover subchannel");
 	while (cur < full) {
 		curt = time(NULL);
+
+		/* compute percent ratio */
+		percent = (int)((((juint64)cur) * ((juint64)10000) / ((juint64)full)));
+
+		if (prep != curt)
+			bitch(BITCHINFO,"Rip: %%%3u.%02u @ %8u %.2fx, expected %8u %.1fx",
+				percent/100,percent%100,
+				cur,d1,expsect,d2);
+
 		if (!dvdsubmap.get(cur) && dvdmap.get(cur)) {
 			memset(cmd,0,12);
 			cmd[ 0] = 0xB9;
@@ -1367,6 +1376,7 @@ void RipCD(JarchSession *session)
 			CD2MSFnb(cmd+6,cur+1);
 			cmd[ 9] = 0xF8;		/* raw sector */
 			cmd[10] = 1;		/* raw unformatted P-W bits */
+			fprintf(stderr,"%lu   \x0D",cur); fflush(stderr);
 			if (session->bdev->scsi(cmd,12,buf,(RAWSEC+RAWSUB),1) < (RAWSEC+RAWSUB) || (sense=session->bdev->get_last_sense(NULL)) == NULL) {
 				bitch(BITCHINFO,"Cannot seek to sector %u!",cur);
 				got = 0;
@@ -1487,14 +1497,6 @@ again:						unsigned char *q = buf+RAWSEC+(12*1);
 			}
 		}
 
-		/* compute percent ratio */
-		percent = (int)((((juint64)cur) * ((juint64)10000) / ((juint64)full)));
-
-		if (prep != curt)
-			bitch(BITCHINFO,"Rip: %%%3u.%02u @ %8u %.2fx, expected %8u %.1fx",
-				percent/100,percent%100,
-				cur,d1,expsect,d2);
-
 		prep = curt;
 		cur++;
 	}
@@ -1504,6 +1506,15 @@ again:						unsigned char *q = buf+RAWSEC+(12*1);
 	while (cur < (75UL * 60UL * 4)) {
 		unsigned long sn = cur + 0xF0000000UL;
 		curt = time(NULL);
+
+		/* compute percent ratio */
+		percent = (int)((((juint64)cur) * ((juint64)10000) / ((juint64)full)));
+
+		if (prep != curt)
+			bitch(BITCHINFO,"Rip: %%%3u.%02u @ %8u %.2fx, expected %8u %.1fx",
+				percent/100,percent%100,
+				cur,d1,expsect,d2);
+
 		if (!dvdleadmap.get(cur)) {
 			memset(cmd,0,12);
 			cmd[ 0] = 0xBE;
@@ -1545,14 +1556,6 @@ again:						unsigned char *q = buf+RAWSEC+(12*1);
 				}
 			}
 		}
-
-		/* compute percent ratio */
-		percent = (int)((((juint64)cur) * ((juint64)10000) / ((juint64)full)));
-
-		if (prep != curt)
-			bitch(BITCHINFO,"Rip: %%%3u.%02u @ %8u %.2fx, expected %8u %.1fx",
-				percent/100,percent%100,
-				cur,d1,expsect,d2);
 
 		prep = curt;
 		cur++;
