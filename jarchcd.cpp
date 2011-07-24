@@ -1355,9 +1355,8 @@ void RipCD(JarchSession *session)
 		prep = curt;
 	}
 
-	cur = 150;
 	bitch(BITCHINFO,"Now trying to recover subchannel");
-	while (cur < session->CD_capacity) {
+	while (cur < full) {
 		curt = time(NULL);
 
 		/* compute percent ratio */
@@ -1487,10 +1486,12 @@ void RipCD(JarchSession *session)
 
 												fprintf(stderr,"\t");
 												for (i=0;i < 24;i++) fprintf(stderr,"%02x",buf[RAWSEC+i]);
+												fprintf(stderr," Q_OK=%u CRC=0x%04x P_OK=%u",QSUB_Check(buf+RAWSEC+(12*1)),qsub_crc(buf+RAWSEC+(12*1)),PSUB_Check(buf+RAWSEC));
 												fprintf(stderr,"\n");
 
 												fprintf(stderr,"\t");
 												for (i=0;i < 24;i++) fprintf(stderr,"%02x",buf[RAWSEC+RAWSUB+RAWSEC+i]);
+												fprintf(stderr," Q_OK=%u CRC=0x%04x P_OK=%u",QSUB_Check(buf+RAWSEC+RAWSUB+RAWSEC+(12*1)),qsub_crc(buf+RAWSEC+RAWSUB+RAWSEC+(12*1)),PSUB_Check(buf+RAWSEC+RAWSUB+RAWSEC));
 												fprintf(stderr,"\n");
 
 												ok = 0;
