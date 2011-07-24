@@ -835,7 +835,7 @@ void RipCD(JarchSession *session)
 									bitch(BITCHINFO,"Cannot seek to sector %u!",cur);
 								}
 								else if ((sense[2]&0xF) != 0) {
-									bitch(BITCHINFO,"Sector %u returned sense code %u",lu,sense[2]&0xF);
+									bitch(BITCHINFO,"Sector %lu returned sense code %u",lu,sense[2]&0xF);
 								}
 								else if (memcmp(buf,sector+16,2048)) {
 									bitch(BITCHINFO,"Mode 1 verification: data differs %lu",cur);
@@ -863,7 +863,7 @@ void RipCD(JarchSession *session)
 										bitch(BITCHINFO,"Cannot seek to sector %u!",cur);
 									}
 									else if ((sense[2]&0xF) != 0) {
-										bitch(BITCHINFO,"Sector %u returned sense code %u",lu,sense[2]&0xF);
+										bitch(BITCHINFO,"Sector %lu returned sense code %u",lu,sense[2]&0xF);
 									}
 									else if (memcmp(buf,sector+24,2324)) {
 										bitch(BITCHINFO,"Mode 2 Form 2 verification: data differs %lu",cur);
@@ -886,7 +886,7 @@ void RipCD(JarchSession *session)
 										bitch(BITCHINFO,"Cannot seek to sector %u!",cur);
 									}
 									else if ((sense[2]&0xF) != 0) {
-										bitch(BITCHINFO,"Sector %u returned sense code %u",lu,sense[2]&0xF);
+										bitch(BITCHINFO,"Sector %lu returned sense code %u",lu,sense[2]&0xF);
 									}
 									else if (memcmp(buf,sector+24,2048)) {
 										bitch(BITCHINFO,"Mode 2 Form 1 verification: data differs %lu",cur);
@@ -1284,7 +1284,7 @@ void RipCD(JarchSession *session)
 		}
 		else if ((sense[2]&0xF) != 0) {
 			if ((sense[2]&0xF) != 5)
-				bitch(BITCHINFO,"Sector %u returned sense code %u",lu,sense[2]&0xF);
+				bitch(BITCHINFO,"Sector %lu returned sense code %u",lu,sense[2]&0xF);
 
 			if (session->rip_backwards) {
 				cur--;
@@ -1441,7 +1441,7 @@ void RipCD(JarchSession *session)
 			}
 			else if ((sense[2]&0xF) != 0) {
 				if ((sense[2]&0xF) != 5)
-					bitch(BITCHINFO,"Sector %u returned sense code %u",lu,sense[2]&0xF);
+					bitch(BITCHINFO,"Sector %lu returned sense code %u",lu,sense[2]&0xF);
 			}
 			else {
 				juint64 ofs;
@@ -1723,7 +1723,7 @@ void RipCD(JarchSession *session)
 			}
 			else if ((sense[2]&0xF) != 0) {
 				if ((sense[2]&0xF) != 5)
-					bitch(BITCHINFO,"Sector %u returned sense code %u",lu,sense[2]&0xF);
+					bitch(BITCHINFO,"Sector %lu returned sense code %u",lu,sense[2]&0xF);
 			}
 			else {
 				juint64 ofs;
