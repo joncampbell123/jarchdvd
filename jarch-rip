@@ -6,8 +6,8 @@ if [[ !( -e "/dev/$dev" ) ]]; then
 fi
 jarchcd2 -dev /dev/$dev -rip
 jarchcd2 -dev /dev/$dev -rip -single
-jarchcd2 -dev /dev/$dev -rip -verify
 jarch-audio-to-wav
+jarchcd2 -dev /dev/$dev -rip -verify
 jarchcd2 -dev /dev/$dev -rip
 jarchcd2 -dev /dev/$dev -rip -single
 jarchcd2 -dev /dev/$dev -rip -verify
