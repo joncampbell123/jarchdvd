@@ -863,7 +863,7 @@ void RipCD(JarchSession *session)
 										bitch(BITCHINFO,"Cannot seek to sector %u!",cur);
 									}
 									else if ((sense[2]&0xF) != 0) {
-										bitch(BITCHINFO,"Sector %lu returned sense code %u",cur,sense[2]&0xF);
+										bitch(BITCHINFO,"Sector %lu returned sense code %u (Mode 2 Form 2)",cur,sense[2]&0xF);
 									}
 									else if (memcmp(buf,sector+24,2324)) {
 										bitch(BITCHINFO,"Mode 2 Form 2 verification: data differs %lu",cur);
