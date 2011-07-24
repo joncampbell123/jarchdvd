@@ -871,11 +871,6 @@ void RipCD(JarchSession *session)
 	/* start off by skipping sectors we've already ripped */
 	while (cur < full && dvdmap.get(cur)) cur++;
 
-	/* if all have been ripped, signal that we are done */
-	if (cur >= full) {
-		return;
-	}
-
 	/* assuming a typical DVD-ROM drive expect initially a 1x
 	 * ripping rate = 10600000 bits/sec = 176400 bytes */
 	if (session->rip_assume_rate > 0.0) {
