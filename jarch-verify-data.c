@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include <unistd.h>
 
+const unsigned char zero4[4] = {0,0,0,0};
+
 unsigned char sector[2352];
 
 static uint32_t get32lsb(const uint8_t* src) {
@@ -40,21 +42,6 @@ static void eccedc_init(void) {
         }
         edc_lut[i] = edc;
     }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-//
-// Compute EDC for a block
-//
-static uint32_t edc_compute(
-    uint32_t edc,
-    const uint8_t* src,
-    size_t size
-) {
-    for(; size; size--) {
-        edc = (edc >> 8) ^ edc_lut[(edc ^ (*src++)) & 0xFF];
-    }
-    return edc;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -102,6 +89,35 @@ static int8_t ecc_checkpq(
     return 1;
 }
 
+//
+// Check ECC P and Q codes for a sector
+// Returns true if the ECC data is an exact match
+//
+static int8_t ecc_checksector(
+    const uint8_t *address,
+    const uint8_t *data,
+    const uint8_t *ecc
+) {
+    return
+        ecc_checkpq(address, data, 86, 24,  2, 86, ecc) &&      // P
+        ecc_checkpq(address, data, 52, 43, 86, 88, ecc + 0xAC); // Q
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// Compute EDC for a block
+//
+static uint32_t edc_compute(
+    uint32_t edc,
+    const uint8_t* src,
+    size_t size
+) {
+    for(; size; size--) {
+        edc = (edc >> 8) ^ edc_lut[(edc ^ (*src++)) & 0xFF];
+    }
+    return edc;
+}
+
 int main(int argc,char **argv) {
 	int video = 0,video2 = 0;
 	unsigned long sec,chk;
@@ -118,8 +134,35 @@ int main(int argc,char **argv) {
 				/* does it check out like one? */
 				chk = edc_compute(0,sector,2048+16);
 				if (chk != get32lsb(sector+2048+16)) {
-					fprintf(stderr,"Sector %lu: EDC checksum failed. 0x%08lx != 0x%08lx\n",sec,chk,get32lsb(sector+2048+16));
+					fprintf(stderr,"Sector %lu [Mode1]: EDC checksum failed. 0x%08lx != 0x%08lx\n",sec,chk,get32lsb(sector+2048+16));
 					continue;
+				}
+				if (!ecc_checksector(sector+0xC,sector+0x10,sector+0x81C)) {
+					fprintf(stderr,"Sector %lu [Mode1]: ECC check failed\n",sec);
+					continue;
+				}
+			}
+			/* is this mode 2? */
+			else if ((sector[15] & 3) == 2) {
+				if (sector[16+2] & 0x20) { /* FORM 2 */
+					/* does it check out like one? */
+					chk = edc_compute(0,sector+16,2332);
+					if (chk != get32lsb(sector+16+2332)) {
+						fprintf(stderr,"Sector %lu [Mode2Form2]: EDC checksum failed. 0x%08lx != 0x%08lx\n",sec,chk,get32lsb(sector+16+2332));
+						continue;
+					}
+				}
+				else { /* FORM 1 */
+					/* does it check out like one? */
+					chk = edc_compute(0,sector+16,2048+8);
+					if (chk != get32lsb(sector+16+2048+8)) {
+						fprintf(stderr,"Sector %lu [Mode2Form1]: EDC checksum failed. 0x%08lx != 0x%08lx\n",sec,chk,get32lsb(sector+16+2048+8));
+						continue;
+					}
+					if (!ecc_checksector(zero4,sector+16,sector+16+0x80C)) {
+						fprintf(stderr,"Sector %lu [Mode2Form1]: ECC check failed\n",sec);
+						continue;
+					}
 				}
 			}
 		}
