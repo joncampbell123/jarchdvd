@@ -1939,6 +1939,9 @@ int main(int argc,char **argv)
 	}
 #endif
 
+	/* EDC+ECC code borrowed from cmd tools */
+	eccedc_init();
+
 	/* initial bitchin' output vector */
 	bitch_init(stderr);
 
