@@ -1512,7 +1512,7 @@ void RipCD(JarchSession *session)
 									unsigned long long nofs = (unsigned long long)aloc * (unsigned long long)RAWSUB;
 
 									if (labs(aloc - cur) < 8) {
-										bitch(BITCHWARNING,"Drive gave me subchannel data for sector %lu not %lu, using anyway",aloc,cur);
+//										bitch(BITCHWARNING,"Drive gave me subchannel data for sector %lu not %lu, using anyway",aloc,cur);
 										if (!dvdsubmap.get(aloc)) {
 											if (dvdsub.seek(nofs) != nofs) {
 												bitch(BITCHWARNING,"Problem seeking to offset " PRINT64F,ofs);
