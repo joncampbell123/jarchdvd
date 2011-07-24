@@ -1,0 +1,19 @@
+#!/bin/bash
+dev="$1"
+if [ x"$dev" == x ]; then
+	echo "rip dev dirname"
+	exit 1
+fi
+name="$2"
+if [ x"$name" == x ]; then
+	echo "rip dev dirname"
+	exit 1
+fi
+if [ -d "$name" ]; then
+	echo "That already exists"
+	exit 1
+fi
+mkdir -p "$name" || exit 1
+cd "$name" || exit 1
+jarch-rip $dev
+
