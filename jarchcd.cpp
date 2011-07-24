@@ -1053,6 +1053,9 @@ void RipCD(JarchSession *session)
 					c--;
 				}
 			}
+
+			if (rd < rdmax)
+				rd++;
 		}
 
 		/* keep track of where we last ended */
