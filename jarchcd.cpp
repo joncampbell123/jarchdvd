@@ -680,6 +680,10 @@ int QSUB_Check(unsigned char *Q) {
 	return (Q[10] == (crc >> 8)) && (Q[11] == (crc & 0xFF));
 }
 
+unsigned char bcd2dec(unsigned char x) {
+	return (((x >> 4) & 0xF) * 10) + (x & 0xF);
+}
+
 unsigned char dec2bcd(unsigned char x) {
 	return ((x / 10) * 16) + (x % 10);
 }
@@ -1355,7 +1359,7 @@ void RipCD(JarchSession *session)
 		prep = curt;
 	}
 
-	cur = 0;
+	cur = 150;
 	bitch(BITCHINFO,"Now trying to recover subchannel");
 	while (cur < full) {
 		curt = time(NULL);
@@ -1501,11 +1505,28 @@ void RipCD(JarchSession *session)
 									}
 								}
 								else {
-#if 0
-									bitch(BITCHWARNING,"Absolute M:S:F mismatch %02x:%02x:%02x should be %02u:%02u:%02u",
-										q[7],q[8],q[9],
-										exp_msf[0],exp_msf[1],exp_msf[2]);
-#endif
+									/* well then where DOES it belong? */
+									unsigned long aloc =	(bcd2dec(q[7]) * 75UL * 60UL) +
+												(bcd2dec(q[8]) * 75UL) +
+												 bcd2dec(q[9]);
+									unsigned long long nofs = (unsigned long long)aloc * (unsigned long long)RAWSUB;
+
+									if (labs(aloc - cur) < 8) {
+										bitch(BITCHWARNING,"Drive gave me subchannel data for sector %lu not %lu, using anyway",aloc,cur);
+										if (!dvdsubmap.get(aloc)) {
+											if (dvdsub.seek(nofs) != nofs) {
+												bitch(BITCHWARNING,"Problem seeking to offset " PRINT64F,ofs);
+												return;
+											}
+											else if (dvdsub.write(buf+RAWSEC,RAWSUB) < RAWSUB) {
+												bitch(BITCHWARNING,"Problem writing data at offset " PRINT64F,ofs);
+												return;
+											}
+
+											dvdsubmap.set(aloc,1);
+										}
+									}
+
 									ok = 0;
 								}
 							}
