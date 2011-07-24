@@ -1318,6 +1318,7 @@ void RipCD(JarchSession *session)
 
 		/* keep track of where we last ended */
 		lastend = cur;
+		usleep(10000);
 
 		if (!session->rip_backwards) {
 			/* if we are far behind timewise, jump ahead */
@@ -1373,6 +1374,7 @@ void RipCD(JarchSession *session)
 				cur,d1,expsect,d2);
 
 		if (!dvdsubmap.get(cur) && dvdmap.get(cur)) {
+			usleep(10000);
 			memset(cmd,0,12);
 			cmd[ 0] = 0xB9;
 			cmd[ 1] = (0 << 2);	/* expected sector type=0 DAP=0 */
@@ -1650,6 +1652,7 @@ void RipCD(JarchSession *session)
 				cur,d1,expsect,d2);
 
 		if (!dvdleadmap.get(cur)) {
+			usleep(10000);
 			memset(cmd,0,12);
 			cmd[ 0] = 0xBE;
 			cmd[ 1] = (0 << 2);	/* expected sector type=0 DAP=0 */
