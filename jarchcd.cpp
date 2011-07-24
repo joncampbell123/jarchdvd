@@ -859,13 +859,14 @@ void RipCD(JarchSession *session)
 									CD2MSFnb(cmd+6,cur+1);
 									cmd[ 9] = 0x10;		/* user area only */
 									cmd[10] = 0;
+									/* FIXME: Hm... So if I set the buffer to 2324 the drive fails the read? */
 									if (session->bdev->scsi(cmd,12,buf,2336,1) < 2336 || (sense=session->bdev->get_last_sense(NULL)) == NULL) {
 										bitch(BITCHINFO,"Cannot seek to sector %u!",cur);
 									}
 									else if ((sense[2]&0xF) != 0) {
 										bitch(BITCHINFO,"Sector %lu returned sense code %u (Mode 2 Form 2)",cur,sense[2]&0xF);
 									}
-									else if (memcmp(buf,sector+16,2336)) {
+									else if (memcmp(buf,sector+24,2324)) {
 										bitch(BITCHINFO,"Mode 2 Form 2 verification: data differs %lu",cur);
 										dvdmap.set(cur,0);
 									}
