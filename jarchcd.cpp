@@ -665,7 +665,7 @@ int PSUB_Check(unsigned char *P) {
 #define TOL 4
 	unsigned int s1=0,s0=0,i;
 	for (i=0;i < 96;i++) {
-		if (P[i] & 0x80) s1++;
+		if (P[i>>3] & (0x80 >> (i&7))) s1++;
 		else s0++;
 	}
 
@@ -1501,9 +1501,11 @@ void RipCD(JarchSession *session)
 									}
 								}
 								else {
+#if 0
 									bitch(BITCHWARNING,"Absolute M:S:F mismatch %02x:%02x:%02x should be %02u:%02u:%02u",
 										q[7],q[8],q[9],
 										exp_msf[0],exp_msf[1],exp_msf[2]);
+#endif
 									ok = 0;
 								}
 							}
