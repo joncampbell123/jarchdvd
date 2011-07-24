@@ -868,7 +868,7 @@ void RipCD(JarchSession *session)
 									}
 									else if (memcmp(buf,sector+24,2324)) {
 										bitch(BITCHINFO,"Mode 2 Form 2 verification: data differs %lu",cur);
-										dvdmap.set(cur,0);
+//										dvdmap.set(cur,0);
 									}
 									else {
 										dvdmap.set(cur,1);
