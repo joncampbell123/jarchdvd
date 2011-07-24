@@ -849,7 +849,7 @@ void RipCD(JarchSession *session)
 								/* look at the subheader. Mode 2 form 1, or Mode 2 form 2? */
 								if (memcmp(sector+16,sector+20,4)) {
 									bitch(BITCHINFO,"Mode 2 sector, subheaders don't match %lu",cur);
-									dvdmap.set(cur,0);
+//									dvdmap.set(cur,0);
 								}
 								else if (sector[16+2] & 0x20) { /* Mode 2 form 2 */
 									memset(cmd,0,12);
@@ -867,10 +867,10 @@ void RipCD(JarchSession *session)
 									}
 									else if (memcmp(buf,sector+24,2324)) {
 										bitch(BITCHINFO,"Mode 2 Form 2 verification: data differs %lu",cur);
-										dvdmap.set(cur,0);
+//										dvdmap.set(cur,0);
 									}
 									else {
-										dvdmap.set(cur,1);
+//										dvdmap.set(cur,1);
 									}
 								}
 								else { /* Mode 2 Form 1 */
@@ -889,10 +889,10 @@ void RipCD(JarchSession *session)
 									}
 									else if (memcmp(buf,sector+24,2048)) {
 										bitch(BITCHINFO,"Mode 2 Form 1 verification: data differs %lu",cur);
-										dvdmap.set(cur,0);
+//										dvdmap.set(cur,0);
 									}
 									else {
-										dvdmap.set(cur,1);
+//										dvdmap.set(cur,1);
 									}
 								}
 								break;
