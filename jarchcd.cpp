@@ -714,7 +714,7 @@ void RipCD(JarchSession *session)
 	}
 
 	cur = 0;
-	full = session->CD_capacity;
+	full = session->CD_capacity + 150UL;
 
 	if (session->rip_expandfill) {
 		return;
@@ -792,7 +792,7 @@ void RipCD(JarchSession *session)
 
 			if (cur == 0) {
 				session->todo->set(TODO_RIPDVD,1);
-				return;
+				break;
 			}
 
 			/* scan backwards to see how big this gap is */
@@ -805,7 +805,7 @@ void RipCD(JarchSession *session)
 			while (cur < full && dvdmap.get(cur)) cur++;
 			if (cur >= full) {
 				session->todo->set(TODO_RIPDVD,1);
-				return;
+				break;
 			}
 
 			/* assume at minimum one sector. how many more can we rip? */
@@ -911,7 +911,7 @@ void RipCD(JarchSession *session)
 						bitch(BITCHWARNING,"Problem seeking to offset " PRINT64F,ofs);
 						return;
 					}
-					else if (dvd.write(buf,RAWSEC) < RAWSEC) {
+					else if (dvd.write(p,RAWSEC) < RAWSEC) {
 						bitch(BITCHWARNING,"Problem writing data at offset " PRINT64F,ofs);
 						return;
 					}
@@ -919,20 +919,19 @@ void RipCD(JarchSession *session)
 						dvdmap.set(cur,1);
 					}
 
-					DeinterleaveRaw96(buf+RAWSEC);
+					DeinterleaveRaw96(p+RAWSEC);
 					ofs = (juint64)cur * (juint64)RAWSUB;
 					if (dvdsub.seek(ofs) != ofs) {
 						bitch(BITCHWARNING,"Problem seeking to offset " PRINT64F,ofs);
 						return;
 					}
-					else if (dvdsub.write(buf+RAWSEC,RAWSUB) < RAWSUB) {
+					else if (dvdsub.write(p+RAWSEC,RAWSUB) < RAWSUB) {
 						bitch(BITCHWARNING,"Problem writing data at offset " PRINT64F,ofs);
 						return;
 					}
-					else if (nonzero(buf+RAWSEC,96) && QSUB_Check(buf+RAWSEC+(12*1))) {
+					else if (nonzero(p+RAWSEC,96) && QSUB_Check(p+RAWSEC+(12*1))) {
 						dvdsubmap.set(cur,1);
 					}
-
 
 					p += RAWSEC;
 					cur++;
@@ -984,6 +983,59 @@ void RipCD(JarchSession *session)
 		prep = curt;
 	}
 
+	cur = 0;
+	bitch(BITCHINFO,"Now trying to recover subchannel");
+	while (cur < full) {
+		curt = time(NULL);
+		if (!dvdsubmap.get(cur)) {
+			memset(cmd,0,12);
+			cmd[ 0] = 0xB9;
+			cmd[ 1] = (0 << 2);	/* expected sector type=0 DAP=0 */
+			CD2MSFnb(cmd+3,cur);
+			CD2MSFnb(cmd+6,cur+1);
+			cmd[ 9] = 0xF8;		/* raw sector */
+			cmd[10] = 1;		/* raw unformatted P-W bits */
+			if (session->bdev->scsi(cmd,12,buf,(RAWSEC+RAWSUB),1) < (RAWSEC+RAWSUB) || (sense=session->bdev->get_last_sense(NULL)) == NULL) {
+				bitch(BITCHINFO,"Cannot seek to sector %u!",cur);
+				got = 0;
+				cur++;
+				rd=1;
+			}
+			else if ((sense[2]&0xF) != 0) {
+				if ((sense[2]&0xF) != 5)
+					bitch(BITCHINFO,"Sector %u returned sense code %u",sense[2]&0xF);
+			}
+			else {
+				juint64 ofs;
+
+				DeinterleaveRaw96(buf+RAWSEC);
+				ofs = (juint64)cur * (juint64)RAWSUB;
+				if (dvdsub.seek(ofs) != ofs) {
+					bitch(BITCHWARNING,"Problem seeking to offset " PRINT64F,ofs);
+					return;
+				}
+				else if (dvdsub.write(buf+RAWSEC,RAWSUB) < RAWSUB) {
+					bitch(BITCHWARNING,"Problem writing data at offset " PRINT64F,ofs);
+					return;
+				}
+				else if (nonzero(buf+RAWSEC,96) && QSUB_Check(buf+RAWSEC+(12*1))) {
+					dvdsubmap.set(cur,1);
+				}
+				else {
+					bitch(BITCHINFO,"Subchannel data has failed validation sector %lu",cur);
+				}
+			}
+		}
+
+		if (prep != curt)
+			bitch(BITCHINFO,"Rip: %%%3u.%02u @ %8u %.2fx, expected %8u %.1fx",
+				percent/100,percent%100,
+				cur,d1,expsect,d2);
+
+		prep = curt;
+		cur++;
+	}
+
 	if (recover)
 		bitch(BITCHINFO,"Recovered %u sectors @ %u",
 			last_recover,first_recover);
@@ -999,6 +1051,16 @@ void RipCD(JarchSession *session)
 			leftover);
 	else
 		session->todo->set(TODO_RIPDVD,1);
+
+	leftover = 0;
+	for (cur=0;cur < full;cur++)
+		if (!dvdsubmap.get(cur)) 
+			leftover++;
+
+	if (leftover > 0)
+		bitch(BITCHINFO,
+			"%u subchannel sectors have not been ripped yet. Re-run this program to fill them in!",
+			leftover);
 }
 
 int main(int argc,char **argv)
