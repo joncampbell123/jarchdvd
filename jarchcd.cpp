@@ -27,6 +27,7 @@
 #include <fcntl.h>
 #include <io.h>
 #endif
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -55,6 +56,7 @@ static int			rip_noskip=0;
 static double			rip_assume_rate=0.0;
 static int			rip_expandfill=0;
 static int			rip_backwards_from_outermost=0;
+static int			rip_verify=0;
 static int			rip_cmi=0;
 static int			rip_assume=0;
 static int			rip_backwards=0;
@@ -461,6 +463,9 @@ int params(int argc,char **argv)
 					return 0;
 				}
 			}
+			else if (!strncmp(p,"verify",6)) {
+				rip_verify=1;
+			}
 			else {
 				bitch(BITCHERROR,"Unknown command line argument %s",argv[i]);
 				bitch(BITCHINFO,"Valid switches are:");
@@ -485,6 +490,7 @@ int params(int argc,char **argv)
 				bitch(BITCHINFO,"-norip                      Skip DVD ripping stage");
 				bitch(BITCHINFO,"-decss                      Use keys from key store to perform DVD");
 				bitch(BITCHINFO,"                            decryption in place (overwriting original)");
+				bitch(BITCHINFO,"-verify                     Verify sectors");
 				bitch(BITCHINFO,"-todo                       Don't do anything, just show the TODO list");
 				bitch(BITCHINFO,"-dumb-poi                   Use Dumb POI generator");
 				bitch(BITCHINFO,"-backwards                  Rip backwards");
@@ -655,9 +661,27 @@ unsigned short qsub_crc(unsigned char *Q) {
   return (~crc)&0xFFFF;
 }
 
+int PSUB_Check(unsigned char *P) {
+#define TOL 4
+	unsigned int s1=0,s0=0,i;
+	for (i=0;i < 96;i++) {
+		if (P[i] & 0x80) s1++;
+		else s0++;
+	}
+
+	assert((s1+s0) == 96);
+	return	(s1 <= TOL && s0 >= (96-TOL)) ||
+		(s0 <= TOL && s1 >= (96-TOL));
+#undef TOL
+}
+
 int QSUB_Check(unsigned char *Q) {
 	unsigned short crc = qsub_crc(Q);
 	return (Q[10] == (crc >> 8)) && (Q[11] == (crc & 0xFF));
+}
+
+unsigned char dec2bcd(unsigned char x) {
+	return ((x / 10) * 16) + (x % 10);
 }
 
 void RipCD(JarchSession *session)
@@ -720,6 +744,98 @@ void RipCD(JarchSession *session)
 		return;
 	}
 	else if (session->rip_periodic > 0) {
+		return;
+	}
+	else if (session->rip_verify) {
+		unsigned char sector[RAWSEC];
+		juint64 ofs;
+
+		curt = prep = time(NULL);
+		buf = session->bdev->buffer();
+		rdmax = session->bdev->buffersize();
+
+		while (cur < full) {
+			if (dvdsubmap.get(cur)) {
+				ofs = (juint64)cur * (juint64)RAWSUB;
+				if (dvdsub.seek(ofs) == ofs && dvdsub.read(sector,RAWSUB) == RAWSUB) {
+					if (nonzero(sector,96) && QSUB_Check(sector+(12*1)) && PSUB_Check(sector)) {
+						unsigned char *q = sector+(12*1);
+						if ((q[0]&0xF) == 1) { /* Mode-1 Q */
+							if (q[1] > 0 && q[1] <= 0x99) { /* actual track */
+								unsigned char exp_msf[3];
+								CD2MSFnb(exp_msf,cur); /* FIXME: Is my DVD-ROM drive being weird or does the time reflect the M:S:F values of the NEXT sector? */
+								if (dec2bcd(exp_msf[0]) == q[7] && dec2bcd(exp_msf[1]) == q[8] && dec2bcd(exp_msf[2]) == q[9]) {
+								}
+								else {
+									dvdsubmap.set(cur,0);
+									bitch(BITCHINFO,"Q-subchannel: absolute M:S:F mismatch sector %lu: %02x:%02x:%02x should be %02u:%02u:%02u",
+										cur,q[7],q[8],q[9],
+										exp_msf[0],exp_msf[1],exp_msf[2]);
+								}
+							}
+						}
+					}
+				}
+			}
+
+			if (dvdmap.get(cur)) {
+				ofs = (juint64)cur * (juint64)RAWSEC;
+				if (dvd.seek(ofs) == ofs && dvd.read(sector,RAWSEC) == RAWSEC) {
+					if (!memcmp(sector,"\x00" "\xFF\xFF\xFF\xFF\xFF" "\xFF\xFF\xFF\xFF\xFF" "\x00",12)) {
+						/* Mode 1 or 2 data sector */
+						switch (sector[15] & 3) {
+							case 0:	/* Mode 0 user data is zero */
+								if (!nonzero(sector+16,RAWSEC-16)) {
+									bitch(BITCHINFO,"Mode 0 user sector %lu has nonzero data",cur);
+									dvdmap.set(cur,0);
+								}
+								break;
+							case 1:	/* Mode 1 data (2048) */
+								memset(cmd,0,12);
+								cmd[ 0] = 0xB9;
+								cmd[ 1] = (2 << 2);	/* expected sector type=2 DAP=0 */
+								CD2MSFnb(cmd+3,cur);
+								CD2MSFnb(cmd+6,cur+1);
+								cmd[ 9] = 0x10;		/* user area only */
+								cmd[10] = 0;
+								if (session->bdev->scsi(cmd,12,buf,2048,1) < 2048 || (sense=session->bdev->get_last_sense(NULL)) == NULL) {
+									bitch(BITCHINFO,"Cannot seek to sector %u!",cur);
+								}
+								else if ((sense[2]&0xF) != 0) {
+									bitch(BITCHINFO,"Sector %u returned sense code %u",sense[2]&0xF);
+								}
+								else if (memcmp(buf,sector+16,2048)) {
+									bitch(BITCHINFO,"Mode 1 verification: data differs %lu",cur);
+									dvdmap.set(cur,0);
+								}
+								else {
+									dvdmap.set(cur,1);
+								}
+								break;
+							case 2: /* Mode 2 */
+								bitch(BITCHINFO,"TODO: Mode 2 in sector %lu",cur);
+								break;
+							default: /* 3 */
+								bitch(BITCHINFO,"Invalid mode 3 in sector %lu",cur);
+								dvdmap.set(cur,0);
+								break;
+						}
+					}
+				}
+			}
+
+			/* compute percent ratio */
+			percent = (int)((((juint64)cur) * ((juint64)10000) / ((juint64)full)));
+
+			curt = time(NULL);
+			if (prep != curt)
+				bitch(BITCHINFO,"Rip: %%%3u.%02u @ %8u %.2fx, expected %8u %.1fx",
+					percent/100,percent%100,
+					cur,d1,expsect,d2);
+
+			prep = curt;
+			cur++;
+		}
 		return;
 	}
 
@@ -929,11 +1045,11 @@ void RipCD(JarchSession *session)
 						bitch(BITCHWARNING,"Problem writing data at offset " PRINT64F,ofs);
 						return;
 					}
-					else if (nonzero(p+RAWSEC,96) && QSUB_Check(p+RAWSEC+(12*1))) {
+					else if (nonzero(p+RAWSEC,96) && QSUB_Check(p+RAWSEC+(12*1)) && PSUB_Check(p+RAWSEC)) {
 						dvdsubmap.set(cur,1);
 					}
 
-					p += RAWSEC;
+					p += RAWSEC+RAWSUB;
 					cur++;
 					c--;
 				}
@@ -1018,14 +1134,15 @@ void RipCD(JarchSession *session)
 					bitch(BITCHWARNING,"Problem writing data at offset " PRINT64F,ofs);
 					return;
 				}
-				else if (nonzero(buf+RAWSEC,96) && QSUB_Check(buf+RAWSEC+(12*1))) {
+				else if (nonzero(buf+RAWSEC,96) && QSUB_Check(buf+RAWSEC+(12*1)) && PSUB_Check(buf+RAWSEC)) {
+//					bitch(BITCHINFO,"Recovered %lu subchannel",cur);
 					dvdsubmap.set(cur,1);
-				}
-				else {
-					bitch(BITCHINFO,"Subchannel data has failed validation sector %lu",cur);
 				}
 			}
 		}
+
+		/* compute percent ratio */
+		percent = (int)((((juint64)cur) * ((juint64)10000) / ((juint64)full)));
 
 		if (prep != curt)
 			bitch(BITCHINFO,"Rip: %%%3u.%02u @ %8u %.2fx, expected %8u %.1fx",
@@ -1176,6 +1293,7 @@ int main(int argc,char **argv)
 		session.chosen_force_rip = chosen_force_rip;
 		session.rip_noskip = rip_noskip;
 		session.rip_assume_rate = rip_assume_rate;
+		session.rip_verify = rip_verify;
 		session.rip_backwards_from_outermost = rip_backwards_from_outermost;
 		session.rip_expandfill = rip_expandfill;
 		session.rip_periodic = rip_periodic;

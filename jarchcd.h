@@ -17,6 +17,7 @@ public:
 	double		rip_assume_rate;
 	int		skip_rip;
 	int		poi_dumb;
+	int		rip_verify;
 	int		rip_backwards;
 	int		rip_backwards_from_outermost;
 	int		singlesector;
