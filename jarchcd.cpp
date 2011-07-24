@@ -1637,7 +1637,7 @@ void RipCD(JarchSession *session)
 
 	cur = 0;
 	bitch(BITCHINFO,"Now trying to recover lead-in");
-	while (cur < (75UL * 60UL * 4)) {
+	while (cur < 75UL) {
 		unsigned long sn = cur + 0xF0000000UL;
 		curt = time(NULL);
 
