@@ -1355,6 +1355,7 @@ void RipCD(JarchSession *session)
 		prep = curt;
 	}
 
+	cur = 0;
 	bitch(BITCHINFO,"Now trying to recover subchannel");
 	while (cur < full) {
 		curt = time(NULL);
