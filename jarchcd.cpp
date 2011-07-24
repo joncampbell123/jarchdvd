@@ -1503,7 +1503,21 @@ void RipCD(JarchSession *session)
 						return;
 					}
 					else if (nonzero(p+RAWSEC,96) && QSUB_Check(p+RAWSEC+(12*1)) && PSUB_Check(p+RAWSEC)) {
-						dvdsubmap.set(cur,1);
+					int ok = 1,rt,i;
+
+					/* WAITAMINUTE: DVD-ROM drives have trouble returning the *right* subchannel data! */
+					{
+						unsigned char *q = p+RAWSEC+(12*1);
+						if ((q[0]&0xF) == 1) { /* Mode-1 Q */
+							if (q[1] > 0 && q[1] <= 0x99) { /* actual track */
+								unsigned char exp_msf[3];
+
+								CD2MSFnb(exp_msf,cur); /* FIXME: Is my DVD-ROM drive being weird or does the time reflect the M:S:F values of the NEXT sector? */
+								if (dec2bcd(exp_msf[0]) == q[7] && dec2bcd(exp_msf[1]) == q[8] && dec2bcd(exp_msf[2]) == q[9]) {
+									dvdsubmap.set(cur,1);
+								}
+							}
+						}
 					}
 
 					p += RAWSEC+RAWSUB;
