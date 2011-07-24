@@ -690,9 +690,11 @@ void RipCD(JarchSession *session)
 #define RAWSUB 96
 #define C2 294
 	LargeSplitImage dvd;
-	LargeSplitImage dvdsub;
 	RippedMap dvdmap;
+	LargeSplitImage dvdsub;
 	RippedMap dvdsubmap;
+	LargeSplitImage dvdlead;
+	RippedMap dvdleadmap;
 	juint64 byteo;
 	unsigned long cur,full,rate,expsect,isect,pfull,lastend,adjsect,backwards_next;
 	unsigned long last_recover,first_recover,leftover;
@@ -737,6 +739,16 @@ void RipCD(JarchSession *session)
 		return;
 	}
 
+	if (dvdlead.open("cdrom-image.lead") < 0) {
+		bitch(BITCHERROR,"Cannot open Large Split Image dvdrom-image");
+		return;
+	}
+
+	if (dvdleadmap.open("cdrom-image.lead.ripmap") < 0) {
+		bitch(BITCHERROR,"Cannot open dvdrom-image ripped map");
+		return;
+	}
+
 	cur = 0;
 	full = session->CD_capacity + 150UL;
 
@@ -767,14 +779,31 @@ void RipCD(JarchSession *session)
 								if (dec2bcd(exp_msf[0]) == q[7] && dec2bcd(exp_msf[1]) == q[8] && dec2bcd(exp_msf[2]) == q[9]) {
 								}
 								else {
+									/* is it the expected value +1?!? */
 									dvdsubmap.set(cur,0);
 									bitch(BITCHINFO,"Q-subchannel: absolute M:S:F mismatch sector %lu: %02x:%02x:%02x should be %02u:%02u:%02u",
 										cur,q[7],q[8],q[9],
 										exp_msf[0],exp_msf[1],exp_msf[2]);
+
+									memset(sector,0,RAWSUB);
+									if (dvdsub.seek(ofs) == ofs && dvdsub.write(sector,RAWSUB) == RAWSUB) {
+									}
 								}
 							}
 						}
 					}
+					else {
+						dvdsubmap.set(cur,0);
+						memset(sector,0,RAWSUB);
+						if (dvdsub.seek(ofs) == ofs && dvdsub.write(sector,RAWSUB) == RAWSUB) {
+						}
+					}
+				}
+			}
+			else {
+				dvdsubmap.set(cur,0);
+				memset(sector,0,RAWSUB);
+				if (dvdsub.seek(ofs) == ofs && dvdsub.write(sector,RAWSUB) == RAWSUB) {
 				}
 			}
 
@@ -894,6 +923,236 @@ void RipCD(JarchSession *session)
 		bitch(BITCHINFO,"Starting rip forwards at %u",cur);
 	}
 
+	/* copy down Table of Contents, PMA, etc */
+	{
+		unsigned long alloc;
+		unsigned char trk;
+		struct stat st;
+		FILE *fp;
+		int i;
+
+		alloc = 2048 * rdmax;
+		if (alloc > 16384) alloc = 16384;
+		if (stat("cdrom.toc",&st) != 0 || 1) {
+			fp = fopen("cdrom.toc","w");
+			if (fp) {
+				/* copy down table of contents */
+				for (trk=0;trk < 0xFF;trk++) {
+					memset(cmd,0,12);
+					cmd[ 0] = 0x43;
+					cmd[ 1] = 0x02;	/* MSF=1 */
+					cmd[ 2] = 0; /* format=0 */
+					cmd[ 6] = trk;
+					cmd[ 7] = alloc >> 8;
+					cmd[ 8] = alloc;
+					memset(buf,0,alloc);
+					if (session->bdev->scsi(cmd,10,buf,alloc,1) >= 4 && (sense=session->bdev->get_last_sense(NULL)) != NULL && (sense[2]&0xF) == 0) {
+						unsigned long dlen = ((unsigned long)buf[0] << 8) | ((unsigned long)buf[1]);
+						if (dlen >= 2) dlen -= 2;
+						else dlen = 0;
+						if (dlen > alloc) {
+							bitch(BITCHINFO,"WARNING: TOC %02u data len > alloc len",trk);
+							dlen = alloc;
+						}
+						if ((dlen % 8) != 0) {
+							bitch(BITCHINFO,"WARNING: TOC %02u data is not multiple of 8",trk);
+							dlen -= dlen % 8;
+						}
+						fprintf(fp,"# TOC track 0x%02x len %u first=%02x last=%02x\n",trk,dlen,buf[2],buf[3]);
+						fprintf(fp,"TOC 0x%02x:%u\n",trk,dlen);
+						for (i=0;i < dlen;i += 8) {
+							fprintf(fp,"\tADR=0x%02x CTRL=0x%02x TRACK=0x%02x START=%02u:%02u:%02u:%02u Res1=0x%02x Res2=0x%02x\n",
+								buf[4+i+1] >> 4,
+								buf[4+i+1] & 0xF,
+								buf[4+i+2],
+								buf[4+i+4],
+								buf[4+i+5],
+								buf[4+i+6],
+								buf[4+i+7],
+								buf[4+i+0],
+								buf[4+i+3]);
+						}
+					}
+				}
+
+				/* copy down last session */
+				{
+					memset(cmd,0,12);
+					cmd[ 0] = 0x43;
+					cmd[ 1] = 0x02;	/* MSF=1 */
+					cmd[ 2] = 1; /* format=1 */
+					cmd[ 6] = 0x00; /* ignored by drive */
+					cmd[ 7] = alloc >> 8;
+					cmd[ 8] = alloc;
+					memset(buf,0,alloc);
+					if (session->bdev->scsi(cmd,10,buf,alloc,1) >= 4 && (sense=session->bdev->get_last_sense(NULL)) != NULL && (sense[2]&0xF) == 0) {
+						unsigned long dlen = ((unsigned long)buf[0] << 8) | ((unsigned long)buf[1]);
+						if (dlen >= 2) dlen -= 2;
+						else dlen = 0;
+						if (dlen > alloc) {
+							bitch(BITCHINFO,"WARNING: TOC last session %02u data len > alloc len",trk);
+							dlen = alloc;
+						}
+						if ((dlen % 8) != 0) {
+							bitch(BITCHINFO,"WARNING: TOC last session %02u data is not multiple of 8",trk);
+							dlen -= dlen % 8;
+						}
+						fprintf(fp,"# Last known session len %u first=%02x last=%02x\n",dlen,buf[2],buf[3]);
+						fprintf(fp,"LAST-SESSION %u\n",dlen);
+						for (i=0;i < dlen;i += 8) {
+							fprintf(fp,"\tADR=0x%02x CTRL=0x%02x FIRST-TRACK-IN-LAST-SESSION=0x%02x START=%02u:%02u:%02u:%02u Res1=0x%02x Res2=0x%02x\n",
+								buf[4+i+1] >> 4,
+								buf[4+i+1] & 0xF,
+								buf[4+i+2],
+								buf[4+i+4],
+								buf[4+i+5],
+								buf[4+i+6],
+								buf[4+i+7],
+								buf[4+i+0],
+								buf[4+i+3]);
+						}
+					}
+				}
+
+				/* copy down table of contents (raw) */
+				for (trk=0;trk < 0xFF;trk++) {
+					memset(cmd,0,12);
+					cmd[ 0] = 0x43;
+					cmd[ 1] = 0x02;	/* MSF=1 */
+					cmd[ 2] = 2; /* format=2 */
+					cmd[ 6] = trk;
+					cmd[ 7] = alloc >> 8;
+					cmd[ 8] = alloc;
+					memset(buf,0,alloc);
+					if (session->bdev->scsi(cmd,10,buf,alloc,1) >= 4 && (sense=session->bdev->get_last_sense(NULL)) != NULL && (sense[2]&0xF) == 0) {
+						unsigned long dlen = ((unsigned long)buf[0] << 8) | ((unsigned long)buf[1]);
+						if (dlen >= 2) dlen -= 2;
+						else dlen = 0;
+						if (dlen > alloc) {
+							bitch(BITCHINFO,"WARNING: TOC %02u data len > alloc len",trk);
+							dlen = alloc;
+						}
+						if ((dlen % 11) != 0) {
+							bitch(BITCHINFO,"WARNING: TOC %02u data is not multiple of 8",trk);
+							dlen -= dlen % 11;
+						}
+						fprintf(fp,"# TOC raw track 0x%02x len %u first-session=%02x last-session=%02x\n",trk,dlen,buf[2],buf[3]);
+						fprintf(fp,"TOC-RAW 0x%02x:%u\n",trk,dlen);
+						for (i=0;i < dlen;i += 11) {
+							fprintf(fp,"\tSESSION=0x%02x ADR=0x%02x CTRL=0x%02x TNO=%u POINT=0x%02x MSF=%02u:%02u:%02u ZERO=0x%02x pMSF=%02u:%02u:%02u\n",
+								buf[4+i+0],
+								buf[4+i+1] >> 4,
+								buf[4+i+1] & 0xF,
+								buf[4+i+2],
+								buf[4+i+3],
+								buf[4+i+4],
+								buf[4+i+5],
+								buf[4+i+6],
+								buf[4+i+7],
+								buf[4+i+8],
+								buf[4+i+9],
+								buf[4+i+10]);
+						}
+					}
+				}
+
+				/* copy down PMA (raw) */
+				{
+					memset(cmd,0,12);
+					cmd[ 0] = 0x43;
+					cmd[ 1] = 0x02;	/* MSF=1 */
+					cmd[ 2] = 3; /* format=3 */
+					cmd[ 6] = 0;
+					cmd[ 7] = alloc >> 8;
+					cmd[ 8] = alloc;
+					memset(buf,0,alloc);
+					if (session->bdev->scsi(cmd,10,buf,alloc,1) >= 4 && (sense=session->bdev->get_last_sense(NULL)) != NULL && (sense[2]&0xF) == 0) {
+						unsigned long dlen = ((unsigned long)buf[0] << 8) | ((unsigned long)buf[1]);
+						if (dlen >= 2) dlen -= 2;
+						else dlen = 0;
+						if (dlen > alloc) {
+							bitch(BITCHINFO,"WARNING: TOC %02u data len > alloc len",trk);
+							dlen = alloc;
+						}
+						if ((dlen % 11) != 0) {
+							bitch(BITCHINFO,"WARNING: TOC %02u data is not multiple of 8",trk);
+							dlen -= dlen % 11;
+						}
+						if (dlen != 0) {
+							fprintf(fp,"# PMA raw track 0x%02x len %u first-session=%02x last-session=%02x\n",trk,dlen,buf[2],buf[3]);
+							fprintf(fp,"PMA-RAW 0x%02x:%u\n",trk,dlen);
+							for (i=0;i < dlen;i += 11) {
+								fprintf(fp,"\tSESSION=0x%02x ADR=0x%02x CTRL=0x%02x TNO=%u POINT=0x%02x MSF=%02u:%02u:%02u ZERO=0x%02x pMSF=%02u:%02u:%02u\n",
+									buf[4+i+0],
+									buf[4+i+1] >> 4,
+									buf[4+i+1] & 0xF,
+									buf[4+i+2],
+									buf[4+i+3],
+									buf[4+i+4],
+									buf[4+i+5],
+									buf[4+i+6],
+									buf[4+i+7],
+									buf[4+i+8],
+									buf[4+i+9],
+									buf[4+i+10]);
+							}
+						}
+					}
+				}
+
+				/* copy down ATIP */
+				{
+					memset(cmd,0,12);
+					cmd[ 0] = 0x43;
+					cmd[ 1] = 0x02;	/* MSF=1 */
+					cmd[ 2] = 4; /* format=4 */
+					cmd[ 6] = 0;
+					cmd[ 7] = alloc >> 8;
+					cmd[ 8] = alloc;
+					memset(buf,0,alloc);
+					if (session->bdev->scsi(cmd,10,buf,alloc,1) >= 4 && (sense=session->bdev->get_last_sense(NULL)) != NULL && (sense[2]&0xF) == 0) {
+						unsigned long dlen = ((unsigned long)buf[0] << 8) | ((unsigned long)buf[1]);
+						if (dlen >= 2) dlen -= 2;
+						else dlen = 0;
+						if (dlen != 0) {
+							fprintf(fp,"# ATIP len=%u\n",dlen);
+							fprintf(fp,"ATIP %u\n",dlen);
+							fprintf(fp,"\t");
+							for (i=0;i < dlen;i++) fprintf(fp,"%02x",buf[4+i]);
+							fprintf(fp,"\n");
+						}
+					}
+				}
+
+				/* copy down CD-TEXT */
+				{
+					memset(cmd,0,12);
+					cmd[ 0] = 0x43;
+					cmd[ 1] = 0x02;	/* MSF=1 */
+					cmd[ 2] = 5; /* format=5 */
+					cmd[ 6] = 0;
+					cmd[ 7] = alloc >> 8;
+					cmd[ 8] = alloc;
+					memset(buf,0,alloc);
+					if (session->bdev->scsi(cmd,10,buf,alloc,1) >= 4 && (sense=session->bdev->get_last_sense(NULL)) != NULL && (sense[2]&0xF) == 0) {
+						unsigned long dlen = ((unsigned long)buf[0] << 8) | ((unsigned long)buf[1]);
+						if (dlen >= 2) dlen -= 2;
+						else dlen = 0;
+						if (dlen != 0) {
+							fprintf(fp,"# CD-TEXT len=%u\n",dlen);
+							fprintf(fp,"CD-TEXT %u\n",dlen);
+							fprintf(fp,"\t");
+							for (i=0;i < dlen;i++) fprintf(fp,"%02x",buf[4+i]);
+							fprintf(fp,"\n");
+						}
+					}
+				}
+
+				fclose(fp);
+			}
+		}
+	}
+
 	while (cur < full || session->rip_backwards) {
 		if (session->singlesector)
 			rd=1;
@@ -954,9 +1213,9 @@ void RipCD(JarchSession *session)
 			bitch(BITCHINFO,"Rip: @ %8u (%u sectors)",
 				cur,sz);
 		else if (prep != curt)
-			bitch(BITCHINFO,"Rip: %%%3u.%02u @ %8u %.2fx, expected %8u %.1fx",
+			bitch(BITCHINFO,"Rip: %%%3u.%02u @ %8u %.2fx, expected %8u %.1fx rd=%u",
 				percent/100,percent%100,
-				cur,d1,expsect,d2);
+				cur,d1,expsect,d2,rd);
 
 		/* rip! */
 		bitch_indent();
@@ -1139,6 +1398,65 @@ void RipCD(JarchSession *session)
 				else if (nonzero(buf+RAWSEC,96) && QSUB_Check(buf+RAWSEC+(12*1)) && PSUB_Check(buf+RAWSEC)) {
 //					bitch(BITCHINFO,"Recovered %lu subchannel",cur);
 					dvdsubmap.set(cur,1);
+				}
+			}
+		}
+
+		/* compute percent ratio */
+		percent = (int)((((juint64)cur) * ((juint64)10000) / ((juint64)full)));
+
+		if (prep != curt)
+			bitch(BITCHINFO,"Rip: %%%3u.%02u @ %8u %.2fx, expected %8u %.1fx",
+				percent/100,percent%100,
+				cur,d1,expsect,d2);
+
+		prep = curt;
+		cur++;
+	}
+
+	cur = 0;
+	bitch(BITCHINFO,"Now trying to recover lead-in");
+	while (cur < (75UL * 60UL * 4)) {
+		unsigned long sn = cur + 0xF0000000UL;
+		curt = time(NULL);
+		if (!dvdleadmap.get(cur)) {
+			memset(cmd,0,12);
+			cmd[ 0] = 0xBE;
+			cmd[ 1] = (0 << 2);	/* expected sector type=0 DAP=0 */
+			cmd[ 2] = (unsigned char)(sn >> 24);
+			cmd[ 3] = (unsigned char)(sn >> 16);
+			cmd[ 4] = (unsigned char)(sn >> 8);
+			cmd[ 5] = (unsigned char)(sn);
+			cmd[ 6] = (unsigned char)(1 >> 16);
+			cmd[ 7] = (unsigned char)(1 >> 8);
+			cmd[ 8] = (unsigned char)(1);
+			cmd[ 9] = 0xF8;		/* raw sector */
+			cmd[10] = 1;		/* raw unformatted P-W bits */
+			if (session->bdev->scsi(cmd,12,buf,(RAWSEC+RAWSUB),1) < (RAWSEC+RAWSUB) || (sense=session->bdev->get_last_sense(NULL)) == NULL) {
+				bitch(BITCHINFO,"Cannot seek to sector %u!",cur);
+				got = 0;
+				cur++;
+				rd=1;
+			}
+			else if ((sense[2]&0xF) != 0) {
+				if ((sense[2]&0xF) != 5)
+					bitch(BITCHINFO,"Sector %u returned sense code %u",sense[2]&0xF);
+			}
+			else {
+				juint64 ofs;
+
+				DeinterleaveRaw96(buf+RAWSEC);
+				ofs = (juint64)cur * (juint64)(RAWSEC+RAWSUB);
+				if (dvdlead.seek(ofs) != ofs) {
+					bitch(BITCHWARNING,"Problem seeking to offset " PRINT64F,ofs);
+					return;
+				}
+				else if (dvdlead.write(buf+RAWSEC,RAWSEC+RAWSUB) < (RAWSEC+RAWSUB)) {
+					bitch(BITCHWARNING,"Problem writing data at offset " PRINT64F,ofs);
+					return;
+				}
+				else {
+					dvdleadmap.set(cur,1);
 				}
 			}
 		}
