@@ -1503,10 +1503,7 @@ void RipCD(JarchSession *session)
 						return;
 					}
 					else if (nonzero(p+RAWSEC,96) && QSUB_Check(p+RAWSEC+(12*1)) && PSUB_Check(p+RAWSEC)) {
-					int ok = 1,rt,i;
-
-					/* WAITAMINUTE: DVD-ROM drives have trouble returning the *right* subchannel data! */
-					{
+						/* WAITAMINUTE: DVD-ROM drives have trouble returning the *right* subchannel data! */
 						unsigned char *q = p+RAWSEC+(12*1);
 						if ((q[0]&0xF) == 1) { /* Mode-1 Q */
 							if (q[1] > 0 && q[1] <= 0x99) { /* actual track */
