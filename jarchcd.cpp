@@ -846,7 +846,55 @@ void RipCD(JarchSession *session)
 								}
 								break;
 							case 2: /* Mode 2 */
-								bitch(BITCHINFO,"TODO: Mode 2 in sector %lu",cur);
+								/* look at the subheader. Mode 2 form 1, or Mode 2 form 2? */
+								if (memcmp(sector+16,sector+20,4)) {
+									bitch(BITCHINFO,"Mode 2 sector, subheaders don't match %lu",cur);
+									dvdmap.set(cur,0);
+								}
+								else if (sector[16+2] & 0x20) { /* Mode 2 form 2 */
+									memset(cmd,0,12);
+									cmd[ 0] = 0xB9;
+									cmd[ 1] = (5 << 2);	/* expected sector type=5 DAP=0 */
+									CD2MSFnb(cmd+3,cur);
+									CD2MSFnb(cmd+6,cur+1);
+									cmd[ 9] = 0x10;		/* user area only */
+									cmd[10] = 0;
+									if (session->bdev->scsi(cmd,12,buf,2324,1) < 2324 || (sense=session->bdev->get_last_sense(NULL)) == NULL) {
+										bitch(BITCHINFO,"Cannot seek to sector %u!",cur);
+									}
+									else if ((sense[2]&0xF) != 0) {
+										bitch(BITCHINFO,"Sector %u returned sense code %u",sense[2]&0xF);
+									}
+									else if (memcmp(buf,sector+24,2324)) {
+										bitch(BITCHINFO,"Mode 2 Form 2 verification: data differs %lu",cur);
+										dvdmap.set(cur,0);
+									}
+									else {
+										dvdmap.set(cur,1);
+									}
+								}
+								else { /* Mode 2 Form 1 */
+									memset(cmd,0,12);
+									cmd[ 0] = 0xB9;
+									cmd[ 1] = (4 << 2);	/* expected sector type=4 DAP=0 */
+									CD2MSFnb(cmd+3,cur);
+									CD2MSFnb(cmd+6,cur+1);
+									cmd[ 9] = 0x10;		/* user area only */
+									cmd[10] = 0;
+									if (session->bdev->scsi(cmd,12,buf,2048,1) < 2048 || (sense=session->bdev->get_last_sense(NULL)) == NULL) {
+										bitch(BITCHINFO,"Cannot seek to sector %u!",cur);
+									}
+									else if ((sense[2]&0xF) != 0) {
+										bitch(BITCHINFO,"Sector %u returned sense code %u",sense[2]&0xF);
+									}
+									else if (memcmp(buf,sector+24,2048)) {
+										bitch(BITCHINFO,"Mode 2 Form 1 verification: data differs %lu",cur);
+										dvdmap.set(cur,0);
+									}
+									else {
+										dvdmap.set(cur,1);
+									}
+								}
 								break;
 							default: /* 3 */
 								bitch(BITCHINFO,"Invalid mode 3 in sector %lu",cur);
