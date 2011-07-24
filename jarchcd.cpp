@@ -750,7 +750,7 @@ void RipCD(JarchSession *session)
 	}
 
 	cur = 0;
-	full = session->CD_capacity + 150UL;
+	full = session->CD_capacity + 150UL + 150UL; /* +pregap +lead-out */
 
 	if (session->rip_expandfill) {
 		return;
