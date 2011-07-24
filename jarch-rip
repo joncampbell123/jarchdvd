@@ -1,0 +1,13 @@
+#!/bin/bash
+dev="$1"
+if [[ !( -e "/dev/$dev" ) ]]; then
+	echo Device $dev does not exist
+	exit 1
+fi
+jarchcd2 -dev /dev/$dev -rip
+jarchcd2 -dev /dev/$dev -rip -single
+jarchcd2 -dev /dev/$dev -rip -verify
+jarchcd2 -dev /dev/$dev -rip
+jarchcd2 -dev /dev/$dev -rip -single
+jarchcd2 -dev /dev/$dev -rip -verify
+
