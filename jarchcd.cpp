@@ -767,8 +767,8 @@ void RipCD(JarchSession *session)
 		rdmax = session->bdev->buffersize();
 
 		while (cur < full) {
+			ofs = (juint64)cur * (juint64)RAWSUB;
 			if (dvdsubmap.get(cur)) {
-				ofs = (juint64)cur * (juint64)RAWSUB;
 				if (dvdsub.seek(ofs) == ofs && dvdsub.read(sector,RAWSUB) == RAWSUB) {
 					if (nonzero(sector,96) && QSUB_Check(sector+(12*1)) && PSUB_Check(sector)) {
 						unsigned char *q = sector+(12*1);
