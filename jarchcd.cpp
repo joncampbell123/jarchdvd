@@ -989,7 +989,6 @@ void RipCD(JarchSession *session)
 		}
 		else {
 			juint64 ofs;
-			int wsz = sz * 2048;
 			got = sz;
 
 			if (cur < pfull && !session->rip_backwards) {
