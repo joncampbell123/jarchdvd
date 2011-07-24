@@ -859,8 +859,9 @@ void RipCD(JarchSession *session)
 									CD2MSFnb(cmd+6,cur+1);
 									cmd[ 9] = 0x10;		/* user area only */
 									cmd[10] = 0;
-									/* FIXME: Hm... So if I set the buffer to 2324 the drive fails the read? */
-									if (session->bdev->scsi(cmd,12,buf,2336,1) < 2336 || (sense=session->bdev->get_last_sense(NULL)) == NULL) {
+									/* FIXME: Uhhhhh so if I say the buffer is 2324 bytes long then the drive fails reading with sense key == 7,
+									 *        even though the returned data is 2324 bytes long? */
+									if (session->bdev->scsi(cmd,12,buf,2352,1) < 2324 || (sense=session->bdev->get_last_sense(NULL)) == NULL) {
 										bitch(BITCHINFO,"Cannot seek to sector %u!",cur);
 									}
 									else if ((sense[2]&0xF) != 0) {
@@ -871,6 +872,7 @@ void RipCD(JarchSession *session)
 //										dvdmap.set(cur,0);
 									}
 									else {
+										bitch(BITCHINFO,"Mode 2 Form 2 works %lu",cur);
 										dvdmap.set(cur,1);
 									}
 								}
