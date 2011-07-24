@@ -870,6 +870,7 @@ void RipCD(JarchSession *session)
 //										dvdmap.set(cur,0);
 									}
 									else {
+										bitch(BITCHINFO,"Mode 2 Form 2 works %lu",cur);
 //										dvdmap.set(cur,1);
 									}
 								}
@@ -892,6 +893,7 @@ void RipCD(JarchSession *session)
 //										dvdmap.set(cur,0);
 									}
 									else {
+										bitch(BITCHINFO,"Mode 2 Form 1 works %lu",cur);
 //										dvdmap.set(cur,1);
 									}
 								}
