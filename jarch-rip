@@ -14,4 +14,5 @@ jarchcd2 -dev /dev/$dev -rip -verify
 jarchcd2 -dev /dev/$dev -rip
 jarchcd2 -dev /dev/$dev -rip -single
 jarch-audio-to-wav
+jarch-verify-data <cdrom-image.bin
 
