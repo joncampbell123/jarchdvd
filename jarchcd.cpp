@@ -928,7 +928,7 @@ void RipCD(JarchSession *session)
 
 		alloc = 2048 * rdmax;
 		if (alloc > 16384) alloc = 16384;
-		if (stat("cdrom.toc",&st) != 0 || 1) {
+		if (stat("cdrom.toc",&st) != 0) {
 			fp = fopen("cdrom.toc","w");
 			if (fp) {
 				/* copy down table of contents */
