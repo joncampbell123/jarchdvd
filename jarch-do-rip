@@ -13,7 +13,18 @@ if [ -d "$name" ]; then
 	echo "That already exists"
 	exit 1
 fi
+
+cdrom_retract /dev/$dev
+sleep 5
+dd if=/dev/$dev of=/dev/null bs=2048 count=32 >/dev/null 2>&1
+cdrom_retract /dev/$dev
+sleep 15
+dd if=/dev/$dev of=/dev/null bs=2048 count=32 >/dev/null 2>&1
+cdrom_retract /dev/$dev
+
 mkdir -p "$name" || exit 1
 cd "$name" || exit 1
 jarch-rip $dev
+
+cdrom_eject /dev/$dev
 
