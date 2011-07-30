@@ -981,12 +981,16 @@ void RipCD(JarchSession *session)
 								}
 								else if (sector[16+2] & 0x20) { /* Mode 2 form 2 */
 									/* does the EDC check out? */
+									uint32_t got = get32lsb(sector+16+2332);
 									chk = edc_compute(0,sector+16,2332);
-									if (chk != get32lsb(sector+16+2332)) {
+									if (got != 0 && chk != got) {
 										fprintf(stderr,"Sector %lu [Mode2Form2]: EDC checksum failed. 0x%08lx != 0x%08lx\n",cur,chk,get32lsb(sector+16+2332));
 										dvdmap.set(cur,0);
 									}
 									else {
+										if (got == 0) /* Apparently the checksum field can be zero, for no checksum */
+											fprintf(stderr,"Sector %lu [Mode2Form2]: EDC checksum warning: Field is zero, checksum not given\n",cur);
+
 										/* does the drive return the same data? */
 										memset(cmd,0,12);
 										cmd[ 0] = 0xB9;
