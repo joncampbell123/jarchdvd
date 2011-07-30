@@ -1754,6 +1754,8 @@ void RipCD(JarchSession *session)
 
 					if (ok) dvdsubmap.set(cur,1);
 				}
+#if 0
+				/* Apparently this never works >:( */
 				else {
 					int ok = 1,rt,i;
 
@@ -1846,7 +1848,7 @@ void RipCD(JarchSession *session)
 
 					if (ok) dvdsubmap.set(cur,1);
 				}
-
+#endif
 			}
 		}
 
