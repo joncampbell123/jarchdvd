@@ -13,6 +13,7 @@ public:
 // option switches set by user
 	int		chosen_force_info;
 	int		chosen_force_rip;
+	int		rip_subchannel;
 	int		rip_noskip;
 	double		rip_assume_rate;
 	int		skip_rip;
