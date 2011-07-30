@@ -13,7 +13,7 @@ jarchcd2 -dev /dev/$dev -rip -single -noskip
 jarchcd2 -dev /dev/$dev -rip -verify
 jarchcd2 -dev /dev/$dev -rip -noskip
 jarchcd2 -dev /dev/$dev -rip -single -noskip
-jarch-audio-to-wav
 jarchcd2 -dev /dev/$dev -rip -single -sub
+jarch-audio-to-wav
 jarch-verify-data <cdrom-image.bin
 
