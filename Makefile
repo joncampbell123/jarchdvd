@@ -6,6 +6,7 @@ clean:
 	rm -f *.exe *.o jarchcd2 jarchdvd2 jarchdvdkeys
 	rm -f -R Debug Release "Debug WNASPI32" "Release WNASPI32" jarch-videocd-to-mpg jarch-verify-data
 	rm -f *.ncb *.opt *.plg *.ilk
+	rm -f *~
 
 install: jarchdvd2
 	mkdir -p $(ROOT)/usr/bin/
