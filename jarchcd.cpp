@@ -1001,7 +1001,6 @@ void RipCD(JarchSession *session)
 									uint32_t got = get32lsb(sector+16+2332);
 									chk = edc_compute(0,sector+16,2332);
 									if (got != 0 && chk != got) {
-										assert(got != 0x00000000UL);
 										fprintf(stderr,"Sector %lu [Mode2Form2]: EDC checksum failed. 0x%08lx != 0x%08lx\n",(long)cur,(long)chk,(long)got);
 										dvdmap.set(cur,0);
 									}

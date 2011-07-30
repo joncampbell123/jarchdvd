@@ -145,11 +145,15 @@ int main(int argc,char **argv) {
 			/* is this mode 2? */
 			else if ((sector[15] & 3) == 2) {
 				if (sector[16+2] & 0x20) { /* FORM 2 */
-					/* does it check out like one? */
+					/* does the EDC check out? */
+					uint32_t got = get32lsb(sector+16+2332);
 					chk = edc_compute(0,sector+16,2332);
-					if (chk != get32lsb(sector+16+2332)) {
-						fprintf(stderr,"Sector %lu [Mode2Form2]: EDC checksum failed. 0x%08lx != 0x%08lx\n",sec,chk,get32lsb(sector+16+2332));
+					if (got != 0 && chk != got) {
+						fprintf(stderr,"Sector %lu [Mode2Form2]: EDC checksum failed. 0x%08lx != 0x%08lx\n",(long)sec,(long)chk,(long)got);
 						continue;
+					}
+					else if (got == 0) {
+						fprintf(stderr,"\x0DSector %lu [Mode2Form2]: EDC checksum is zeroed out ",(long)sec); fflush(stderr);
 					}
 				}
 				else { /* FORM 1 */
