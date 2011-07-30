@@ -1634,6 +1634,7 @@ void RipCD(JarchSession *session)
 								if (dec2bcd(exp_msf[0]) == q[7] && dec2bcd(exp_msf[1]) == q[8] && dec2bcd(exp_msf[2]) == q[9]) {
 									ok = 1;
 								}
+#if 0
 								else if (dec2bcd(exp_msf1[0]) == q[7] && dec2bcd(exp_msf1[1]) == q[8] && dec2bcd(exp_msf1[2]) == q[9]) {
 									bitch(BITCHWARNING,"Drive returned requested subchannel +1 on sector %lu, re-reading",cur);
 
@@ -1717,6 +1718,7 @@ void RipCD(JarchSession *session)
 										}
 									}
 								}
+#endif
 								else {
 									/* well then where DOES it belong? */
 									unsigned long aloc =	(bcd2dec(q[7]) * 75UL * 60UL) +
