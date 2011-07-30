@@ -1066,7 +1066,7 @@ void RipCD(JarchSession *session)
 
 			curt = time(NULL);
 			if (prep != curt)
-				bitch(BITCHINFO,"Rip: %%%3u.%02u @ %8u %.2fx, expected %8u %.1fx",
+				bitch(BITCHINFO,"Rip: %%%3u.%02u @ %8u %.2fx, expected %8u %.1fx (verify)",
 					percent/100,percent%100,
 					cur,d1,expsect,d2);
 
@@ -1584,7 +1584,7 @@ void RipCD(JarchSession *session)
 		percent = (int)((((juint64)cur) * ((juint64)10000) / ((juint64)full)));
 
 		if (prep != curt)
-			bitch(BITCHINFO,"Rip: %%%3u.%02u @ %8u %.2fx, expected %8u %.1fx",
+			bitch(BITCHINFO,"Rip: %%%3u.%02u @ %8u %.2fx, expected %8u %.1fx (subchannel)",
 				percent/100,percent%100,
 				cur,d1,expsect,d2);
 
