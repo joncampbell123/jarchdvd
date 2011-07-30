@@ -988,9 +988,10 @@ void RipCD(JarchSession *session)
 										dvdmap.set(cur,0);
 									}
 									else {
+#if 0
 										if (got == 0) /* Apparently the checksum field can be zero, for no checksum */
 											fprintf(stderr,"Sector %lu [Mode2Form2]: EDC checksum warning: Field is zero, checksum not given\n",cur);
-
+#endif
 										/* does the drive return the same data? */
 										memset(cmd,0,12);
 										cmd[ 0] = 0xB9;
