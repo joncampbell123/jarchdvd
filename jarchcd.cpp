@@ -815,6 +815,7 @@ void RipCD(JarchSession *session)
 #define C2 294
 	LargeSplitImage dvd;
 	RippedMap dvdmap;
+	RippedMap dvdvmap;
 	LargeSplitImage dvdsub;
 	RippedMap dvdsubmap;
 	LargeSplitImage dvdlead;
@@ -849,6 +850,11 @@ void RipCD(JarchSession *session)
 	}
 
 	if (dvdmap.open("cdrom-image.ripmap") < 0) {
+		bitch(BITCHERROR,"Cannot open dvdrom-image ripped map");
+		return;
+	}
+
+	if (dvdvmap.open("cdrom-image.verified.ripmap") < 0) {
 		bitch(BITCHERROR,"Cannot open dvdrom-image ripped map");
 		return;
 	}
@@ -932,7 +938,7 @@ void RipCD(JarchSession *session)
 				}
 			}
 
-			if (dvdmap.get(cur)) {
+			if (dvdmap.get(cur) && !dvdvmap.get(cur)) {
 				ofs = (juint64)cur * (juint64)RAWSEC;
 				if (dvd.seek(ofs) == ofs && dvd.read(sector,RAWSEC) == RAWSEC) {
 					if (!memcmp(sector,"\x00" "\xFF\xFF\xFF\xFF\xFF" "\xFF\xFF\xFF\xFF\xFF" "\x00",12)) {
@@ -942,6 +948,10 @@ void RipCD(JarchSession *session)
 								if (!nonzero(sector+16,RAWSEC-16)) {
 									bitch(BITCHINFO,"Mode 0 user sector %lu has nonzero data",cur);
 									dvdmap.set(cur,0);
+								}
+								else {
+									dvdmap.set(cur,1);
+									dvdvmap.set(cur,1);
 								}
 								break;
 							case 1:	/* Mode 1 data (2048) */
@@ -976,6 +986,7 @@ void RipCD(JarchSession *session)
 									}
 									else {
 										dvdmap.set(cur,1);
+										dvdvmap.set(cur,1);
 									}
 								}
 								break;
@@ -1020,6 +1031,7 @@ void RipCD(JarchSession *session)
 										}
 										else {
 											dvdmap.set(cur,1);
+											dvdvmap.set(cur,1);
 										}
 									}
 								}
@@ -1055,6 +1067,7 @@ void RipCD(JarchSession *session)
 										}
 										else {
 											dvdmap.set(cur,1);
+											dvdvmap.set(cur,1);
 										}
 									}
 								}
@@ -1065,6 +1078,9 @@ void RipCD(JarchSession *session)
 								break;
 						}
 					}
+				}
+				else {
+					/* FIXME: How would you verify audio CD tracks? */
 				}
 			}
 
