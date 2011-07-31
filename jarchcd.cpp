@@ -172,6 +172,7 @@ static double			rip_assume_rate=0.0;
 static int			rip_expandfill=0;
 static int			rip_backwards_from_outermost=0;
 static int			rip_verify=0;
+static int			rip_verify_by_reading=0;
 static int			rip_cmi=0;
 static int			rip_assume=0;
 static int			rip_backwards=0;
@@ -585,6 +586,9 @@ int params(int argc,char **argv)
 			else if (!strncmp(p,"verify",6)) {
 				rip_verify=1;
 			}
+			else if (!strncmp(p,"verify-read",6+5)) {
+				rip_verify_by_reading=1;
+			}
 			else {
 				bitch(BITCHERROR,"Unknown command line argument %s",argv[i]);
 				bitch(BITCHINFO,"Valid switches are:");
@@ -611,6 +615,10 @@ int params(int argc,char **argv)
 				bitch(BITCHINFO,"-decss                      Use keys from key store to perform DVD");
 				bitch(BITCHINFO,"                            decryption in place (overwriting original)");
 				bitch(BITCHINFO,"-verify                     Verify sectors");
+				bitch(BITCHINFO,"-verify-read                Verify sectors by re-reading from the disc");
+				bitch(BITCHINFO,"                               * NOTE: If not specified, the code will only re-read the");
+				bitch(BITCHINFO,"                                 sector data for Mode 2 form 2 sectors where the checksum");
+				bitch(BITCHINFO,"                                 field is zero");
 				bitch(BITCHINFO,"-todo                       Don't do anything, just show the TODO list");
 				bitch(BITCHINFO,"-dumb-poi                   Use Dumb POI generator");
 				bitch(BITCHINFO,"-backwards                  Rip backwards");
@@ -942,115 +950,60 @@ void RipCD(JarchSession *session)
 				ofs = (juint64)cur * (juint64)RAWSEC;
 				if (dvd.seek(ofs) == ofs && dvd.read(sector,RAWSEC) == RAWSEC) {
 					if (!memcmp(sector,"\x00" "\xFF\xFF\xFF\xFF\xFF" "\xFF\xFF\xFF\xFF\xFF" "\x00",12)) {
-						/* Mode 1 or 2 data sector */
-						switch (sector[15] & 3) {
-							case 0:	/* Mode 0 user data is zero */
-								if (!nonzero(sector+16,RAWSEC-16)) {
-									bitch(BITCHINFO,"Mode 0 user sector %lu has nonzero data",cur);
-									dvdmap.set(cur,0);
-								}
-								else {
-									dvdmap.set(cur,1);
-									dvdvmap.set(cur,1);
-								}
-								break;
-							case 1:	/* Mode 1 data (2048) */
-								/* check one: does the data have the correct EDC+ECC? */
-								chk = edc_compute(0,sector,2048+16);
-								if (chk != get32lsb(sector+2048+16)) {
-									fprintf(stderr,"Sector %lu [Mode1]: EDC checksum failed. 0x%08lx != 0x%08lx\n",cur,chk,get32lsb(sector+2048+16));
-									dvdmap.set(cur,0);
-								}
-								else if (!ecc_checksector(sector+0xC,sector+0x10,sector+0x81C)) {
-									fprintf(stderr,"Sector %lu [Mode1]: ECC check failed\n",cur);
-									dvdmap.set(cur,0);
-								}
-								else {
-									/* Okay good. Now: if we re-read the sector using the proper mode, does the drive return the same data? */
-									memset(cmd,0,12);
-									cmd[ 0] = 0xB9;
-									cmd[ 1] = (2 << 2);	/* expected sector type=2 DAP=0 */
-									CD2MSFnb(cmd+3,cur);
-									CD2MSFnb(cmd+6,cur+1);
-									cmd[ 9] = 0x10;		/* user area only */
-									cmd[10] = 0;
-									if (session->bdev->scsi(cmd,12,buf,2048,1) < 2048 || (sense=session->bdev->get_last_sense(NULL)) == NULL) {
-										bitch(BITCHINFO,"Cannot seek to sector %u!",cur);
-									}
-									else if ((sense[2]&0xF) != 0) {
-										bitch(BITCHINFO,"Sector %lu returned sense code %u",cur,sense[2]&0xF);
-									}
-									else if (memcmp(buf,sector+16,2048)) {
-										bitch(BITCHINFO,"Mode 1 verification: data differs %lu",cur);
+						/* FIXME: As far as I know the M:S:F numbers tend to differ only on multisession CDs
+						 *        or "extended CDs" with audio tracks followed by data. So this check would
+						 *        fail on those. But we'll deal with those when we meet them.
+						 *
+						 *        This check acts as additional protection against bad reads, even though
+						 *        experience so far tells me that most CD-ROM and DVD-ROM drives are very
+						 *        good about using what they can to get the right sector even when asked
+						 *        to read the sector raw. It's entitely possible that even in raw sector
+						 *        mode the drives use this exact field to locate the sector precisely. */
+						/* bytes 12,13,14 carry BCD M:S:F of the sector which should match up with what we
+						 * asked for. */
+						int M = (int)(cur / 75L / 60L);
+						int S = (int)((cur / 75L) % 60L);
+						int F = (int)(cur % 75L);
+
+						if (dec2bcd(M) != sector[12] || dec2bcd(S) != sector[13] || dec2bcd(F) != sector[14]) {
+							bitch(BITCHINFO,"Sector %lu, Data M:S:F fields do not match. Expected %02u:%02u:%02u got %02x:%02x:%02x\n",
+								(long)cur,M,S,F,sector[12],sector[13],sector[14]);
+//							dvdvmap.set(cur,0);
+//							dvdmap.set(cur,0);
+						}
+						else {
+							/* Mode 1 or 2 data sector */
+							switch (sector[15] & 3) {
+								case 0:	/* Mode 0 user data is zero */
+									if (!nonzero(sector+16,RAWSEC-16)) {
+										bitch(BITCHINFO,"Mode 0 user sector %lu has nonzero data",cur);
 										dvdmap.set(cur,0);
 									}
 									else {
 										dvdmap.set(cur,1);
 										dvdvmap.set(cur,1);
 									}
-								}
-								break;
-							case 2: /* Mode 2 */
-								/* look at the subheader. Mode 2 form 1, or Mode 2 form 2? */
-								if (memcmp(sector+16,sector+20,4)) {
-									bitch(BITCHINFO,"Mode 2 sector, subheaders don't match %lu",cur);
-									dvdmap.set(cur,0);
-								}
-								else if (sector[16+2] & 0x20) { /* Mode 2 form 2 */
-									/* does the EDC check out? */
-									uint32_t got = get32lsb(sector+16+2332);
-									chk = edc_compute(0,sector+16,2332);
-									if (got != 0 && chk != got) {
-										fprintf(stderr,"Sector %lu [Mode2Form2]: EDC checksum failed. 0x%08lx != 0x%08lx\n",(long)cur,(long)chk,(long)got);
+									break;
+								case 1:	/* Mode 1 data (2048) */
+									/* check one: does the data have the correct EDC+ECC? */
+									chk = edc_compute(0,sector,2048+16);
+									if (chk != get32lsb(sector+2048+16)) {
+										fprintf(stderr,"Sector %lu [Mode1]: EDC checksum failed. 0x%08lx != 0x%08lx\n",cur,chk,get32lsb(sector+2048+16));
 										dvdmap.set(cur,0);
+									}
+									else if (!ecc_checksector(sector+0xC,sector+0x10,sector+0x81C)) {
+										fprintf(stderr,"Sector %lu [Mode1]: ECC check failed\n",cur);
+										dvdmap.set(cur,0);
+									}
+									else if (!session->rip_verify_by_reading) {
+										dvdmap.set(cur,1);
+										dvdvmap.set(cur,1);
 									}
 									else {
-#if 0
-										if (got == 0) /* Apparently the checksum field can be zero, for no checksum */
-											fprintf(stderr,"Sector %lu [Mode2Form2]: EDC checksum warning: Field is zero, checksum not given\n",cur);
-#endif
-										/* does the drive return the same data? */
+										/* Okay good. Now: if we re-read the sector using the proper mode, does the drive return the same data? */
 										memset(cmd,0,12);
 										cmd[ 0] = 0xB9;
-										cmd[ 1] = (5 << 2);	/* expected sector type=5 DAP=0 */
-										CD2MSFnb(cmd+3,cur);
-										CD2MSFnb(cmd+6,cur+1);
-										cmd[ 9] = 0x10;		/* user area only */
-										cmd[10] = 0;
-										/* FIXME: Uhhhhh so if I say the buffer is 2324 bytes long then the drive fails reading with sense key == 7,
-										 *        even though the returned data is 2324 bytes long? */
-										if (session->bdev->scsi(cmd,12,buf,2352,1) < 2324 || (sense=session->bdev->get_last_sense(NULL)) == NULL) {
-											bitch(BITCHINFO,"Cannot seek to sector %u!",cur);
-										}
-										else if ((sense[2]&0xF) != 0) {
-											bitch(BITCHINFO,"Sector %lu returned sense code %u (Mode 2 Form 2)",cur,sense[2]&0xF);
-										}
-										else if (memcmp(buf,sector+24,2324)) {
-											bitch(BITCHINFO,"Mode 2 Form 2 verification: data differs %lu",cur);
-											dvdmap.set(cur,0);
-										}
-										else {
-											dvdmap.set(cur,1);
-											dvdvmap.set(cur,1);
-										}
-									}
-								}
-								else { /* Mode 2 Form 1 */
-									/* do the EDC+ECC check out? */
-									chk = edc_compute(0,sector+16,2048+8);
-									if (chk != get32lsb(sector+16+2048+8)) {
-										fprintf(stderr,"Sector %lu [Mode2Form1]: EDC checksum failed. 0x%08lx != 0x%08lx\n",cur,chk,get32lsb(sector+16+2048+8));
-										dvdmap.set(cur,0);
-									}
-									else if (!ecc_checksector(zero4,sector+16,sector+16+0x80C)) {
-										fprintf(stderr,"Sector %lu [Mode2Form1]: ECC check failed\n",cur);
-										dvdmap.set(cur,0);
-									}
-									else {
-										/* does the drive return the same data? */
-										memset(cmd,0,12);
-										cmd[ 0] = 0xB9;
-										cmd[ 1] = (4 << 2);	/* expected sector type=4 DAP=0 */
+										cmd[ 1] = (2 << 2);	/* expected sector type=2 DAP=0 */
 										CD2MSFnb(cmd+3,cur);
 										CD2MSFnb(cmd+6,cur+1);
 										cmd[ 9] = 0x10;		/* user area only */
@@ -1061,8 +1014,8 @@ void RipCD(JarchSession *session)
 										else if ((sense[2]&0xF) != 0) {
 											bitch(BITCHINFO,"Sector %lu returned sense code %u",cur,sense[2]&0xF);
 										}
-										else if (memcmp(buf,sector+24,2048)) {
-											bitch(BITCHINFO,"Mode 2 Form 1 verification: data differs %lu",cur);
+										else if (memcmp(buf,sector+16,2048)) {
+											bitch(BITCHINFO,"Mode 1 verification: data differs %lu",cur);
 											dvdmap.set(cur,0);
 										}
 										else {
@@ -1070,12 +1023,107 @@ void RipCD(JarchSession *session)
 											dvdvmap.set(cur,1);
 										}
 									}
-								}
-								break;
-							default: /* 3 */
-								bitch(BITCHINFO,"Invalid mode 3 in sector %lu",cur);
-								dvdmap.set(cur,0);
-								break;
+									break;
+								case 2: /* Mode 2 */
+									/* look at the subheader. Mode 2 form 1, or Mode 2 form 2? */
+									if (memcmp(sector+16,sector+20,4)) {
+										bitch(BITCHINFO,"Mode 2 sector, subheaders don't match %lu",cur);
+										dvdmap.set(cur,0);
+									}
+									else if (sector[16+2] & 0x20) { /* Mode 2 form 2 */
+										/* does the EDC check out? */
+										uint32_t got = get32lsb(sector+16+2332);
+										chk = edc_compute(0,sector+16,2332);
+										if (got != 0 && chk != got) {
+											fprintf(stderr,"Sector %lu [Mode2Form2]: EDC checksum failed. 0x%08lx != 0x%08lx\n",(long)cur,(long)chk,(long)got);
+											dvdmap.set(cur,0);
+										}
+										/* If the CRC is given we can verify data integrity without re-reading. Otherwise,
+										 * we can only hope to catch errors by re-reading the sector to see if any bits
+										 * flip. */
+										else if (!session->rip_verify_by_reading && got != 0) {
+											dvdmap.set(cur,1);
+											dvdvmap.set(cur,1);
+										}
+										else {
+											/* TODO: Add code that does not re-read unless the user says to do so explicitly, or the CRC checksum field is zero */
+#if 0
+											if (got == 0) /* Apparently the checksum field can be zero, for no checksum */
+												fprintf(stderr,"Sector %lu [Mode2Form2]: EDC checksum warning: Field is zero, checksum not given\n",cur);
+#endif
+											/* does the drive return the same data? */
+											memset(cmd,0,12);
+											cmd[ 0] = 0xB9;
+											cmd[ 1] = (5 << 2);	/* expected sector type=5 DAP=0 */
+											CD2MSFnb(cmd+3,cur);
+											CD2MSFnb(cmd+6,cur+1);
+											cmd[ 9] = 0x10;		/* user area only */
+											cmd[10] = 0;
+											/* FIXME: Uhhhhh so if I say the buffer is 2324 bytes long then the drive fails reading with sense key == 7,
+											 *        even though the returned data is 2324 bytes long? */
+											if (session->bdev->scsi(cmd,12,buf,2352,1) < 2324 || (sense=session->bdev->get_last_sense(NULL)) == NULL) {
+												bitch(BITCHINFO,"Cannot seek to sector %u!",cur);
+											}
+											else if ((sense[2]&0xF) != 0) {
+												bitch(BITCHINFO,"Sector %lu returned sense code %u (Mode 2 Form 2)",cur,sense[2]&0xF);
+											}
+											else if (memcmp(buf,sector+24,2324)) {
+												bitch(BITCHINFO,"Mode 2 Form 2 verification: data differs %lu",cur);
+												dvdmap.set(cur,0);
+											}
+											else {
+												dvdmap.set(cur,1);
+												dvdvmap.set(cur,1);
+											}
+										}
+									}
+									else { /* Mode 2 Form 1 */
+										/* do the EDC+ECC check out? */
+										/* FIXME: Like Mode 2 form 2, are authoring programs allowed to set the CRC field to zero? */
+										chk = edc_compute(0,sector+16,2048+8);
+										if (chk != get32lsb(sector+16+2048+8)) {
+											fprintf(stderr,"Sector %lu [Mode2Form1]: EDC checksum failed. 0x%08lx != 0x%08lx\n",cur,chk,get32lsb(sector+16+2048+8));
+											dvdmap.set(cur,0);
+										}
+										else if (!ecc_checksector(zero4,sector+16,sector+16+0x80C)) {
+											fprintf(stderr,"Sector %lu [Mode2Form1]: ECC check failed\n",cur);
+											dvdmap.set(cur,0);
+										}
+										else if (!session->rip_verify_by_reading) {
+											dvdmap.set(cur,1);
+											dvdvmap.set(cur,1);
+										}
+										else {
+											/* does the drive return the same data? */
+											memset(cmd,0,12);
+											cmd[ 0] = 0xB9;
+											cmd[ 1] = (4 << 2);	/* expected sector type=4 DAP=0 */
+											CD2MSFnb(cmd+3,cur);
+											CD2MSFnb(cmd+6,cur+1);
+											cmd[ 9] = 0x10;		/* user area only */
+											cmd[10] = 0;
+											if (session->bdev->scsi(cmd,12,buf,2048,1) < 2048 || (sense=session->bdev->get_last_sense(NULL)) == NULL) {
+												bitch(BITCHINFO,"Cannot seek to sector %u!",cur);
+											}
+											else if ((sense[2]&0xF) != 0) {
+												bitch(BITCHINFO,"Sector %lu returned sense code %u",cur,sense[2]&0xF);
+											}
+											else if (memcmp(buf,sector+24,2048)) {
+												bitch(BITCHINFO,"Mode 2 Form 1 verification: data differs %lu",cur);
+												dvdmap.set(cur,0);
+											}
+											else {
+												dvdmap.set(cur,1);
+												dvdvmap.set(cur,1);
+											}
+										}
+									}
+									break;
+								default: /* 3 */
+									bitch(BITCHINFO,"Invalid mode 3 in sector %lu",cur);
+									dvdmap.set(cur,0);
+									break;
+							}
 						}
 					}
 				}
@@ -2086,6 +2134,7 @@ int main(int argc,char **argv)
 		session.rip_noskip = rip_noskip;
 		session.rip_assume_rate = rip_assume_rate;
 		session.rip_verify = rip_verify;
+		session.rip_verify_by_reading = rip_verify_by_reading;
 		session.rip_backwards_from_outermost = rip_backwards_from_outermost;
 		session.rip_expandfill = rip_expandfill;
 		session.rip_subchannel = rip_subchannel;

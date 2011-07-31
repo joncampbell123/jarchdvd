@@ -19,6 +19,7 @@ public:
 	int		skip_rip;
 	int		poi_dumb;
 	int		rip_verify;
+	int		rip_verify_by_reading;
 	int		rip_backwards;
 	int		rip_backwards_from_outermost;
 	int		singlesector;
