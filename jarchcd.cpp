@@ -968,8 +968,8 @@ void RipCD(JarchSession *session)
 						if (dec2bcd(M) != sector[12] || dec2bcd(S) != sector[13] || dec2bcd(F) != sector[14]) {
 							bitch(BITCHINFO,"Sector %lu, Data M:S:F fields do not match. Expected %02u:%02u:%02u got %02x:%02x:%02x\n",
 								(long)cur,M,S,F,sector[12],sector[13],sector[14]);
-//							dvdvmap.set(cur,0);
-//							dvdmap.set(cur,0);
+							dvdvmap.set(cur,0);
+							dvdmap.set(cur,0);
 						}
 						else {
 							/* Mode 1 or 2 data sector */
