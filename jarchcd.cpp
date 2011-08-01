@@ -1433,22 +1433,23 @@ void RipCD(JarchSession *session)
 		}
 	}
 
+	if (session->rip_verify_by_reading) {
+		for (unsigned long i=0;i < full;i++) {
+			dvdtrmap.set(i,0);
+		}
+	}
+
 	while (cur < full || session->rip_backwards) {
 		if (session->singlesector)
 			rd=1;
 
-		if (!session->rip_verify_by_reading && dvdtrmap.get(cur)) {
-			rd=1;
-			cur++;
-			continue;
-		}
 
 		if (session->rip_backwards) {
 			unsigned long curend;
 
 			/* scan backwards to look for an unripped slot */
 			cur = backwards_next;
-			while (cur != ((unsigned)-1) && dvdmap.get(cur)) cur--;
+			while (cur != ((unsigned)-1) && (dvdmap.get(cur) || dvdtrmap.get(cur))) cur--;
 			curend = ++cur;
 
 			if (cur == 0) {
@@ -1458,12 +1459,12 @@ void RipCD(JarchSession *session)
 
 			/* scan backwards to see how big this gap is */
 			sz = 1;
-			while (sz < rd && (cur-sz) != 0 && !dvdmap.get(cur-sz)) sz++;
+			while (sz < rd && (cur-sz) != 0 && (!dvdmap.get(cur-sz) && !dvdtrmap.get(cur-sz))) sz++;
 			cur -= sz;
 		}
 		else {
 			/* look for an unripped slot */
-			while (cur < full && dvdmap.get(cur)) cur++;
+			while (cur < full && (dvdmap.get(cur) || dvdtrmap.get(cur))) cur++;
 			if (cur >= full) {
 				session->todo->set(TODO_RIPDVD,1);
 				break;
@@ -1471,7 +1472,7 @@ void RipCD(JarchSession *session)
 
 			/* assume at minimum one sector. how many more can we rip? */
 			sz = 1;
-			while (sz < rd && (cur+sz) < full && !dvdmap.get(cur+sz)) sz++;
+			while (sz < rd && (cur+sz) < full && (!dvdmap.get(cur+sz) && !dvdtrmap.get(cur+sz))) sz++;
 
 			/* now, based on where we last left off, adjust isect. if we don't
 			 * do this the rate calculator will come up with insanely high values
