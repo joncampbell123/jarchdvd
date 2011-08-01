@@ -16,7 +16,7 @@ install: jarchdvd2
 	mkdir -p $(ROOT)/usr/man/man1
 	cp -fv jarchdvd2.1 $(ROOT)/usr/man/man1/
 	cp -fv jarchdvdkeys.1 $(ROOT)/usr/man/man1/
-	cp -fv jarch-verify-data jarch-videocd-to-mpg jarch-{audio-to-wav,clear,rip,do-rip,rip-ns,do-rip-ns} $(ROOT)/usr/bin/
+	cp -fv jarch-verify-data jarch-videocd-to-mpg jarch-{audio-to-wav,clear,rip,do-rip,rip-ns,do-rip-ns,rip-ns-persistent,do-rip-ns-persistent} $(ROOT)/usr/bin/
 
 JARCHCD_OBJLIST = bitchin.o blockio.o blockio_iokit.o blockio_ntscsi.o blockio_std.o blockio_packet.o blockio_sg.o jarchcd.o util.o rippedmap.o lsimage.o
 JARCHDVD_OBJLIST = bitchin.o blockio.o blockio_iokit.o blockio_ntscsi.o blockio_std.o blockio_packet.o blockio_sg.o jarchdvd.o util.o keystore.o rippedmap.o lsimage.o mediagather.o css-auth.o css-cipher.o dvd-auth.o ripdvd.o ripdvd_dvdvideo.o udf.o
