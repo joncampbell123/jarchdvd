@@ -11,6 +11,7 @@ jarchcd2 -dev /dev/$dev -rip -verify
 jarchcd2 -dev /dev/$dev -rip
 jarchcd2 -dev /dev/$dev -rip -single -noskip
 jarchcd2 -dev /dev/$dev -rip -verify
+rm -f cdrom-image.timeout.ripfail.ripmap
 jarchcd2 -dev /dev/$dev -rip -noskip
 jarch-audio-to-wav
 jarch-verify-data <cdrom-image.bin
