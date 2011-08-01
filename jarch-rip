@@ -6,7 +6,7 @@ if [[ !( -e "/dev/$dev" ) ]]; then
 fi
 jarchcd2 -dev /dev/$dev -rip
 jarchcd2 -dev /dev/$dev -rip -single
-jarch-audio-to-wav
+# jarch-audio-to-wav
 jarchcd2 -dev /dev/$dev -rip -single -sub
 jarchcd2 -dev /dev/$dev -rip -verify
 jarchcd2 -dev /dev/$dev -rip
@@ -14,6 +14,6 @@ jarchcd2 -dev /dev/$dev -rip -single -noskip
 jarchcd2 -dev /dev/$dev -rip -verify
 jarchcd2 -dev /dev/$dev -rip -noskip
 jarchcd2 -dev /dev/$dev -rip -single -noskip -sub
-jarch-audio-to-wav
+# jarch-audio-to-wav
 jarch-verify-data <cdrom-image.bin
 
