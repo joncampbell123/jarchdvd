@@ -824,6 +824,7 @@ void RipCD(JarchSession *session)
 	LargeSplitImage dvd;
 	RippedMap dvdmap;
 	RippedMap dvdvmap;
+	RippedMap dvdtrmap;
 	LargeSplitImage dvdsub;
 	RippedMap dvdsubmap;
 	LargeSplitImage dvdlead;
@@ -863,6 +864,11 @@ void RipCD(JarchSession *session)
 	}
 
 	if (dvdvmap.open("cdrom-image.verified.ripmap") < 0) {
+		bitch(BITCHERROR,"Cannot open dvdrom-image ripped map");
+		return;
+	}
+
+	if (dvdtrmap.open("cdrom-image.timeout.ripfail.ripmap") < 0) {
 		bitch(BITCHERROR,"Cannot open dvdrom-image ripped map");
 		return;
 	}
@@ -1431,6 +1437,12 @@ void RipCD(JarchSession *session)
 		if (session->singlesector)
 			rd=1;
 
+		if (!session->rip_verify_by_reading && dvdtrmap.get(cur)) {
+			rd=1;
+			cur++;
+			continue;
+		}
+
 		if (session->rip_backwards) {
 			unsigned long curend;
 
@@ -1494,6 +1506,9 @@ void RipCD(JarchSession *session)
 		/* rip! */
 		bitch_indent();
 
+		time_t ot,nt;
+		ot = time(NULL);
+
 		memset(cmd,0,12);
 		cmd[ 0] = 0xB9;
 		cmd[ 1] = (0 << 2);	/* expected sector type=0 DAP=0 */
@@ -1508,8 +1523,14 @@ void RipCD(JarchSession *session)
 			rd=1;
 		}
 		else if ((sense[2]&0xF) != 0) {
+			nt = time(NULL);
+
 			if ((sense[2]&0xF) != 5)
 				bitch(BITCHINFO,"Sector %lu returned sense code %u",cur,sense[2]&0xF);
+			if ((sense[2]&0xF) == 3 && nt >= (ot+3)) {
+				bitch(BITCHINFO,"   will not attempt again, took too long");
+				dvdtrmap.set(cur,1);
+			}
 
 			if (session->rip_backwards) {
 				cur--;
