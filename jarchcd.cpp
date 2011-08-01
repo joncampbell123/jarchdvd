@@ -1518,10 +1518,16 @@ void RipCD(JarchSession *session)
 		cmd[ 9] = 0xF8;		/* raw sector */
 		cmd[10] = 1;		/* raw unformatted P-W bits */
 		if (session->bdev->scsi(cmd,12,buf,(RAWSEC+RAWSUB)*sz,1) < ((RAWSEC+RAWSUB)*sz) || (sense=session->bdev->get_last_sense(NULL)) == NULL) {
+			nt = time(NULL);
 			bitch(BITCHINFO,"Cannot seek to sector %u!",cur);
 			got = 0;
 			cur++;
 			rd=1;
+
+			if (nt >= (ot+3)) {
+				bitch(BITCHINFO,"   will not attempt again, took too long");
+				dvdtrmap.set(cur,1);
+			}
 		}
 		else if ((sense[2]&0xF) != 0) {
 			nt = time(NULL);
