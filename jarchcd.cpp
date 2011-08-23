@@ -1159,12 +1159,14 @@ void RipCD(JarchSession *session)
 						/* allow slop for up to 3 wrong zero bits and 6 wrong one bits */
 						if (zm == 16 && om == 80) {
 							/* perfect match?!? */
-							bitch(BITCHWARNING,"Perfect match on %lu data pattern but memcmp() failed?!?",cur);
-							break;
+							bitch(BITCHERROR,"Perfect match on %lu data pattern but memcmp() failed?!? How can that be?!?",cur);
+							abort();
 						}
 						else if (om >= (80-6) && zm >= (16-3)) {
 							bitch(BITCHWARNING,"Sector %lu does not have explicit data pattern but it looks very close to one!",cur);
+							bitch(BITCHWARNING,"It's possible this data sector's sync pattern has bit flip errors");
 							bitch(BITCHWARNING,"  zero=%u one=%u",zm,om);
+							dvdmap.set(cur,0);
 						}
 					}
 				}
