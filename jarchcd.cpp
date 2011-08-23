@@ -1133,7 +1133,39 @@ void RipCD(JarchSession *session)
 						}
 					}
 					else {
-						/* FIXME: How would you verify audio CD tracks? */
+						int zm=0,om=0,i;
+
+						/* then it's an audio track. maybe.... */
+						/* 2011/08/20: I just realized something: Past experience with raw-ripping
+						 *             tells me that drives can return a read from the lower level
+						 *             circuitry, and that some times bits do flip in the raw data.
+						 *             So what happens if the bit flip happens in the sync pattern?
+						 *
+						 *             This is highly unlikely on today's smart DVD-ROM drives, but
+						 *             something worth checking for. Because I'm paranoid.
+						 *
+						 *             The sync pattern for data is:
+						 *
+						 *             0x00 0xFF 0xFF 0xFF  0xFF 0xFF 0xFF 0xFF  0xFF 0xFF 0xFF 0x00 */
+						for (i=0;i < 8;i++) { /* bytes 0 and 11 should be zero */
+							zm += ((sector[0] >> i) & 1) == 0;
+							zm += ((sector[11] >> i) & 1) == 0;
+						}
+						for (i=0;i < (10*8);i++) { /* bytes 0 and 11 should be zero */
+							om += ((sector[(i>>3)+1] >> (i&7)) & 1) == 1;
+						}
+
+						/* there should be 16 zero bits and 80 one bits */
+						/* allow slop for up to 3 wrong zero bits and 6 wrong one bits */
+						if (zm == 16 && om == 80) {
+							/* perfect match?!? */
+							bitch(BITCHWARNING,"Perfect match on %lu data pattern but memcmp() failed?!?",cur);
+							break;
+						}
+						else if (om >= (80-6) && zm >= (16-3)) {
+							bitch(BITCHWARNING,"Sector %lu does not have explicit data pattern but it looks very close to one!",cur);
+							bitch(BITCHWARNING,"  zero=%u one=%u",zm,om);
+						}
 					}
 				}
 			}
