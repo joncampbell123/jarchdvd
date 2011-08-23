@@ -1132,9 +1132,9 @@ void RipCD(JarchSession *session)
 							}
 						}
 					}
-				}
-				else {
-					/* FIXME: How would you verify audio CD tracks? */
+					else {
+						/* FIXME: How would you verify audio CD tracks? */
+					}
 				}
 			}
 
