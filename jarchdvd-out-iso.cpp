@@ -45,10 +45,12 @@
 
 using namespace std;
 
+static int			iso_fd = -1;
+static FILE*			iso_keyfile = NULL;
+static int			iso_dont_decrypt = 0;
 static FILE*			chosen_bitch_out;
 static char			chosen_bitch_out_fname[256];
 static char			chosen_input_block_dev[256];
-static int			chosen_test_mode=0;
 static int			chosen_force_info=0;
 static int			chosen_force_rip=0;
 static int			rip_periodic=0;
@@ -71,17 +73,6 @@ static string			driver_name;
 //   0 = no test
 //   1 = KeyStorage test
 //   2 = RippedMap test
-
-void DoTestMode()
-{
-	switch (chosen_test_mode) {
-		case 1:	DoTestKeyStore();		break;
-		case 2:	DoTestRippedMap();		break;
-
-		default:
-			bitch(BITCHERROR,"Program error: Unknown test mode %u",chosen_test_mode);
-	}
-}
 
 int params(int argc,char **argv)
 {
@@ -228,15 +219,17 @@ int params(int argc,char **argv)
 				p += 5;
 
 				if (!strncmp(p,"keystore",8)) {
-					chosen_test_mode = 1;
 				}
 				else if (!strncmp(p,"ripmap",6)) {
-					chosen_test_mode = 2;
 				}
 				else {
 					bitch(BITCHERROR,"Unknown test mode");
 					return 0;
 				}
+			}
+			else if (!strncmp(p,"keep-css",8)) {
+				iso_dont_decrypt = 1;
+				fprintf(stderr,"Keeping CSS encryption\n");
 			}
 			else {
 				bitch(BITCHERROR,"Unknown command line argument %s",argv[i]);
@@ -269,6 +262,8 @@ int params(int argc,char **argv)
 				bitch(BITCHINFO,"-expandfill                 Use expanding fill rip method");
 				bitch(BITCHINFO,"-periodic <n>               Rip only every nth sector");
 				bitch(BITCHINFO,"-single                     Rip single sectors only");
+
+				bitch(BITCHINFO,"-keep-css                   Keep CSS encryption intact, write CSS keys out to keyfile");
 				return 0;
 			}
 		}
@@ -390,7 +385,7 @@ void ISODecryptDVD(JarchSession *session)
 	unsigned long long total=0;
 	unsigned long cur,full;
 	int sz,rdmax,got;
-	int key_cur,decrypted=0,dss;
+	int key_cur,decrypted=0,dss=0;
 	time_t curt,prep;
 
 	if (title.open("JarchDVD-Title.keystore") < 0) {
@@ -408,6 +403,7 @@ void ISODecryptDVD(JarchSession *session)
 		return;
 	}
 
+	full = session->DVD_capacity;
 	if (full == 0) return;
 
 	/* enumerate all keys in storage */
@@ -437,6 +433,15 @@ void ISODecryptDVD(JarchSession *session)
 	prep = 0;
 	key_cur = 0;
 	key = ddv_keys[key_cur].key;
+	if (iso_keyfile) {
+		fprintf(stderr,"Key Sector=%lu Key=%02x-%02x-%02x-%02x-%02x-%02x\n",
+			ddv_keys[key_cur].sector,
+			ddv_keys[key_cur].key[1],
+			ddv_keys[key_cur].key[2],
+			ddv_keys[key_cur].key[3],
+			ddv_keys[key_cur].key[4],
+			ddv_keys[key_cur].key[5]);
+	}
 	while (cur < full) {
 		curt = time(NULL);
 
@@ -451,6 +456,17 @@ void ISODecryptDVD(JarchSession *session)
 		/* match sector to key */
 		while (key_cur < (ddv_keys_next-1) && (cur >= ddv_keys[key_cur+1].sector)) {
 			key_cur++;
+
+			if (iso_keyfile) {
+				fprintf(stderr,"Key Sector=%lu Key=%02x-%02x-%02x-%02x-%02x-%02x\n",
+					ddv_keys[key_cur].sector,
+					ddv_keys[key_cur].key[1],
+					ddv_keys[key_cur].key[2],
+					ddv_keys[key_cur].key[3],
+					ddv_keys[key_cur].key[4],
+					ddv_keys[key_cur].key[5]);
+			}
+
 			bitch(BITCHINFO,"key %u sector %u: using key %02X %02X %02X %02X %02X found at %u",
 				key_cur,
 				cur,
@@ -491,20 +507,13 @@ void ISODecryptDVD(JarchSession *session)
 		}
 
 		/* ensure that it's MPEG-2 PES and decrypt */
-		dss = ISODVDVideoDecrypt(cur,buf,got,key);
+		if (!iso_dont_decrypt) dss = ISODVDVideoDecrypt(cur,buf,got,key);
 		decrypted += dss;
 
 		/* write to stdout */
-		{
-			unsigned char *p = buf,*f = buf+(got*2048);
-			while (p < f) {
-				int w = write(1/*stdout*/,p,(size_t)(f-p));
-				if (w <= 0) {
-					fprintf(stderr,"Problem writing to stdout\n");
-					abort();
-				}
-				p += w;
-			}
+		if (write(iso_fd,buf,got*2048) < (got*2048)) {
+			fprintf(stderr,"Problem writing to ISO\n");
+			abort();
 		}
 
 		/* updates */
@@ -515,6 +524,12 @@ void ISODecryptDVD(JarchSession *session)
 
 		/* next? */
 		cur += got;
+
+		/* make SURE the file offsets are in sync */
+		if (lseek(iso_fd,0,SEEK_CUR) != ((unsigned long long)cur * 2048LL)) {
+			fprintf(stderr,"ISO writing fell out of sync\n");
+			abort();
+		}
 	}
 
 	delete buf;
@@ -529,14 +544,6 @@ int main(int argc,char **argv)
 	JarchSession session;
 	RippedMap* todo;
 	int i;
-
-#ifdef WIN32
-	{
-		// large SCSI xfers really slow NT down!
-		// set our own task priority to low!
-		SetPriorityClass(GetCurrentProcess(),IDLE_PRIORITY_CLASS);
-	}
-#endif
 
 	/* initial bitchin' output vector */
 	bitch_init(stderr);
@@ -587,24 +594,25 @@ int main(int argc,char **argv)
 	bitch_unindent();
 
 	/* if stdout is a terminal, redirect to jarchdvd-output.iso */
-	if (isatty(1)) {
-		int fd = open("jarchdvd-output.iso",O_CREAT|O_TRUNC,0644);
-		if (fd < 0) {
-			fprintf(stderr,"Cannot open jarchdvd-output.iso\n");
+	iso_fd = open("jarchdvd-output.iso",O_CREAT|O_TRUNC|O_WRONLY,0644);
+	if (iso_fd < 0) {
+		fprintf(stderr,"Cannot open jarchdvd-output.iso\n");
+		return 1;
+	}
+
+	if (0) {
+		if ((iso_keyfile = fopen("jarchdvd-output.iso.css-keys","w")) == NULL) {
+			fprintf(stderr,"Cannot open keyfile\n");
 			return 1;
 		}
-		dup2(fd,1);
-		close(fd);
+		setbuf(iso_keyfile,NULL);
 	}
 
 	// ...and the name of the current path
 	bitch_cwd();
 
 	// are we doing a test mode?
-	if (chosen_test_mode > 0) {
-		DoTestMode();
-	}
-	else {
+	{
 		// open the "TODO" list
 		todo = new RippedMap();
 		if (!todo) {
@@ -653,6 +661,8 @@ int main(int argc,char **argv)
 		fclose(chosen_bitch_out);
 	}
 
+	if (iso_keyfile) fclose(iso_keyfile);
+	close(iso_fd);
 	return 0;
 }
 

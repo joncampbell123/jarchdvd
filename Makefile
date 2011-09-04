@@ -1,6 +1,6 @@
 all: jarchcd2 jarchdvd2 jarchdvdkeys config.h jarch-videocd-to-mpg jarch-verify-data jarchdvd-out-iso
 
-CFLAGS = -DLINUX
+CFLAGS = -DLINUX -D_FILE_OFFSET_BITS=64
 
 clean:
 	rm -f *.exe *.o jarchcd2 jarchdvd2 jarchdvdkeys
