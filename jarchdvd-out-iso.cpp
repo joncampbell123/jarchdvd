@@ -600,7 +600,7 @@ int main(int argc,char **argv)
 		return 1;
 	}
 
-	if (0) {
+	if (iso_dont_decrypt) {
 		if ((iso_keyfile = fopen("jarchdvd-output.iso.css-keys","w")) == NULL) {
 			fprintf(stderr,"Cannot open keyfile\n");
 			return 1;
