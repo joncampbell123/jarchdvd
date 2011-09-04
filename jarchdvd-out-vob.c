@@ -44,7 +44,7 @@ int main(int argc,char **argv) {
 	}
 
 	while (force_read(0/*stdin*/,sector,2048) == 2048) {
-		if (((offset >> 11ULL) & 0x1F) == 0) {
+		if (((offset >> 11ULL) & 0xFFF) == 0) {
 			fprintf(stderr,"\x0D" "%llu     ",offset);
 			fflush(stderr);
 		}
