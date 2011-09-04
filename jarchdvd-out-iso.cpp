@@ -425,7 +425,7 @@ void ISODecryptDVD(JarchSession *session)
 		if (!dvdmap.get(cur)) {
 			bitch(BITCHWARNING,"  sector %u is missing\n",cur);
 			memset(sector,0,2048);
-			write(1/*stdout*/,sector,2048);
+			write(iso_fd,sector,2048);
 			cur++;
 			continue;
 		}
