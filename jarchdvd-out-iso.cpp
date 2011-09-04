@@ -305,33 +305,6 @@ void bitchTODO(JarchSession *session)
 	bitch_unindent();
 }
 
-void RipDVDStatus(JarchSession *session)
-{
-	int leftover,ripped,i;
-	RippedMap dvdmap;
-
-	if (dvdmap.open("dvdrom-image.ripmap") < 0) {
-		bitch(BITCHINFO,"Ripping has not commenced yet");
-		return;
-	}
-
-	if (session->DVD_capacity == 0) {
-		bitch(BITCHINFO,"Ripping has not determined capacity yet");
-		return;
-	}
-
-	ripped = 0;
-	leftover = 0;
-	for (i=0;i < session->DVD_capacity;i++)
-		if (!dvdmap.get(i))
-			leftover++;
-		else
-			ripped++;
-
-	bitch(BITCHINFO,"%u sectors out of %u have NOT been ripped",leftover,session->DVD_capacity);
-	bitch(BITCHINFO,"%u sectors out of %u have been ripped",ripped,session->DVD_capacity);
-}
-
 /*-----------------warning modified copypasta from ripdvd.cpp--------------------*/
 
 typedef struct {
@@ -442,6 +415,7 @@ void ISODecryptDVD(JarchSession *session)
 			ddv_keys[key_cur].key[4],
 			ddv_keys[key_cur].key[5]);
 	}
+	fprintf(stderr,"DVD capacity %u\n",full);
 	while (cur < full) {
 		curt = time(NULL);
 
@@ -539,6 +513,18 @@ void ISODecryptDVD(JarchSession *session)
 
 /*-------------------------------------------------------------------------------*/
 
+static void DoReadDVDCapacity(JarchSession *session)
+{
+	unsigned long x;
+	int i;
+
+	x = 0;
+	for (i=0;i < 32;i++)
+		x |= (session->todo->get(TODO_RIPDVD_CAPACITY_DWORD+i) << i);
+
+	session->DVD_capacity = x;
+}
+
 int main(int argc,char **argv)
 {
 	JarchSession session;
@@ -628,6 +614,7 @@ int main(int argc,char **argv)
 		session.dvdauth = NULL;
 		session.todo = todo;
 		session.bdev = NULL;
+		session.DVD_capacity = 0;
 		session.chosen_force_info = chosen_force_info;
 		session.chosen_force_rip = chosen_force_rip;
 		session.rip_noskip = rip_noskip;
@@ -643,6 +630,9 @@ int main(int argc,char **argv)
 		session.poi_dumb = poi_dumb;
 		session.rip_backwards = rip_backwards;
 		session.singlesector = singlesector;
+
+		/* get DVD image info */
+		DoReadDVDCapacity(&session);
 
 		/* do css decryption and write ISO to stdout */
 		ISODecryptDVD(&session);
