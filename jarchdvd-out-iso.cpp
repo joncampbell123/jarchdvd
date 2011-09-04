@@ -434,7 +434,7 @@ void ISODecryptDVD(JarchSession *session)
 	key_cur = 0;
 	key = ddv_keys[key_cur].key;
 	if (iso_keyfile) {
-		fprintf(stderr,"Key Sector=%lu Key=%02x-%02x-%02x-%02x-%02x-%02x\n",
+		fprintf(iso_keyfile,"Key Sector=%lu Key=%02x-%02x-%02x-%02x-%02x-%02x\n",
 			ddv_keys[key_cur].sector,
 			ddv_keys[key_cur].key[1],
 			ddv_keys[key_cur].key[2],
@@ -458,7 +458,7 @@ void ISODecryptDVD(JarchSession *session)
 			key_cur++;
 
 			if (iso_keyfile) {
-				fprintf(stderr,"Key Sector=%lu Key=%02x-%02x-%02x-%02x-%02x-%02x\n",
+				fprintf(iso_keyfile,"Key Sector=%lu Key=%02x-%02x-%02x-%02x-%02x-%02x\n",
 					ddv_keys[key_cur].sector,
 					ddv_keys[key_cur].key[1],
 					ddv_keys[key_cur].key[2],
