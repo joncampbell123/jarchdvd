@@ -34,6 +34,7 @@ int force_write(int fd,unsigned char *buf,int sz) {
 }
 
 int main(int argc,char **argv) {
+	unsigned long long offset=0;
 	unsigned char sector[2048];
 	int rd;
 
@@ -43,10 +44,18 @@ int main(int argc,char **argv) {
 	}
 
 	while (force_read(0/*stdin*/,sector,2048) == 2048) {
+		if (((offset >> 11ULL) & 0x1F) == 0) {
+			fprintf(stderr,"\x0D" "%llu     ",offset);
+			fflush(stderr);
+		}
+
 		if (!memcmp(sector,"\x00\x00\x01\xBA",4))
 			force_write(1/*stdout*/,sector,2048);
+
+		offset += 2048ULL;
 	}
 
+	fprintf(stderr,"\x0D" "                      \n");
 	return 0;
 }
 
