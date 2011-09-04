@@ -350,7 +350,7 @@ int ISODVDVideoDecrypt(unsigned long sector,unsigned char *data,int N,unsigned c
 void ISODecryptDVD(JarchSession *session)
 {
 	unsigned char sector[2048];
-	unsigned char *buf,*key;
+	unsigned char *buf,*key=NULL;
 	KeyStorage title;
 	juint64 ofs;
 	RippedMap dvdmap;
@@ -387,10 +387,8 @@ void ISODecryptDVD(JarchSession *session)
 	title.enumtree(ISODecryptDVDenum);
 	bitch(BITCHINFO,"%u keys (%u expected) gathered",ddv_keys_next,ddv_keys_len);
 
-	if (ddv_keys_next < 1) {
+	if (ddv_keys_next < 1)
 		bitch(BITCHINFO,"No keys gathered, not decrypting");
-		return;
-	}
 
 	rdmax = 32;	/* decrypt 32 sectors at a time max */
 	buf = new unsigned char[rdmax * 2048];
@@ -404,16 +402,21 @@ void ISODecryptDVD(JarchSession *session)
 
 	cur = 0;
 	prep = 0;
-	key_cur = 0;
-	key = ddv_keys[key_cur].key;
-	if (iso_keyfile) {
-		fprintf(iso_keyfile,"Key Sector=%lu Key=%02x-%02x-%02x-%02x-%02x-%02x\n",
-			ddv_keys[key_cur].sector,
-			ddv_keys[key_cur].key[1],
-			ddv_keys[key_cur].key[2],
-			ddv_keys[key_cur].key[3],
-			ddv_keys[key_cur].key[4],
-			ddv_keys[key_cur].key[5]);
+	if (ddv_keys_next >= 1) {
+		key_cur = 0;
+		key = ddv_keys[key_cur].key;
+		if (iso_keyfile) {
+			fprintf(iso_keyfile,"Key Sector=%lu Key=%02x-%02x-%02x-%02x-%02x-%02x\n",
+					ddv_keys[key_cur].sector,
+					ddv_keys[key_cur].key[1],
+					ddv_keys[key_cur].key[2],
+					ddv_keys[key_cur].key[3],
+					ddv_keys[key_cur].key[4],
+					ddv_keys[key_cur].key[5]);
+		}
+	}
+	else {
+		key_cur = -1;
 	}
 	fprintf(stderr,"DVD capacity %u\n",full);
 	while (cur < full) {
@@ -427,41 +430,45 @@ void ISODecryptDVD(JarchSession *session)
 			continue;
 		}
 
-		/* match sector to key */
-		while (key_cur < (ddv_keys_next-1) && (cur >= ddv_keys[key_cur+1].sector)) {
-			key_cur++;
+		if (key_cur >= 0) {
+			/* match sector to key */
+			while (key_cur < (ddv_keys_next-1) && (cur >= ddv_keys[key_cur+1].sector)) {
+				key_cur++;
 
-			if (iso_keyfile) {
-				fprintf(iso_keyfile,"Key Sector=%lu Key=%02x-%02x-%02x-%02x-%02x-%02x\n",
-					ddv_keys[key_cur].sector,
-					ddv_keys[key_cur].key[1],
-					ddv_keys[key_cur].key[2],
-					ddv_keys[key_cur].key[3],
-					ddv_keys[key_cur].key[4],
-					ddv_keys[key_cur].key[5]);
+				if (iso_keyfile) {
+					fprintf(iso_keyfile,"Key Sector=%lu Key=%02x-%02x-%02x-%02x-%02x-%02x\n",
+							ddv_keys[key_cur].sector,
+							ddv_keys[key_cur].key[1],
+							ddv_keys[key_cur].key[2],
+							ddv_keys[key_cur].key[3],
+							ddv_keys[key_cur].key[4],
+							ddv_keys[key_cur].key[5]);
+				}
+
+				bitch(BITCHINFO,"key %u sector %u: using key %02X %02X %02X %02X %02X found at %u",
+						key_cur,
+						cur,
+						ddv_keys[key_cur].key[1],
+						ddv_keys[key_cur].key[2],
+						ddv_keys[key_cur].key[3],
+						ddv_keys[key_cur].key[4],
+						ddv_keys[key_cur].key[5],
+						ddv_keys[key_cur].sector);
+
+				key = ddv_keys[key_cur].key;
 			}
-
-			bitch(BITCHINFO,"key %u sector %u: using key %02X %02X %02X %02X %02X found at %u",
-				key_cur,
-				cur,
-				ddv_keys[key_cur].key[1],
-				ddv_keys[key_cur].key[2],
-				ddv_keys[key_cur].key[3],
-				ddv_keys[key_cur].key[4],
-				ddv_keys[key_cur].key[5],
-				ddv_keys[key_cur].sector);
-
-			key = ddv_keys[key_cur].key;
 		}
 
 		/* how many more can we do in one go? */
 		for (sz=1;sz < rdmax && (cur+sz) < full && dvdmap.get(cur+sz);) sz++;
 
-		/* how many sectors before coming across a different key? */
-		if (key_cur < (ddv_keys_next-1)) {
-			int xxx = ddv_keys[key_cur+1].sector - cur;
-			if (xxx < 0) xxx = 0;
-			if (sz > xxx) sz = xxx;
+		if (key_cur >= 0) {
+			/* how many sectors before coming across a different key? */
+			if (key_cur < (ddv_keys_next-1)) {
+				int xxx = ddv_keys[key_cur+1].sector - cur;
+				if (xxx < 0) xxx = 0;
+				if (sz > xxx) sz = xxx;
+			}
 		}
 
 		if (sz < 1) {
@@ -481,7 +488,7 @@ void ISODecryptDVD(JarchSession *session)
 		}
 
 		/* ensure that it's MPEG-2 PES and decrypt */
-		if (!iso_dont_decrypt) dss = ISODVDVideoDecrypt(cur,buf,got,key);
+		if (!iso_dont_decrypt && key_cur >= 0) dss = ISODVDVideoDecrypt(cur,buf,got,key);
 		decrypted += dss;
 
 		/* write to stdout */
