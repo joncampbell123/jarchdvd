@@ -22,7 +22,8 @@ JarchBlockIO* blockiodefault(const char *drvname) {
 
 	if (drvname == NULL) {
 #ifdef LINUX
-		drvname = "linux_sg";
+		/* FIXME: On recent kernels linux_sg is unable to obtain CSS title keys. Why? */
+		drvname = "linux_packet";
 #endif
 	}
 
