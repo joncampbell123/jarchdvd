@@ -165,6 +165,7 @@ static JarchBlockIO*		chosen_bio=NULL;
 static int			chosen_test_mode=0;
 static int			chosen_force_info=0;
 static int			chosen_force_rip=0;
+static int			chosen_dont_rip=0;
 static int			rip_subchannel=0;
 static int			rip_periodic=0;
 static int			rip_noskip=0;
@@ -491,6 +492,10 @@ int params(int argc,char **argv)
 			/* -rip */
 			else if (!strncmp(p,"rip",3)) {
 				chosen_force_rip=1;
+			}
+			/* -no-rip */
+			else if (!strncmp(p,"no-rip",6)) {
+				chosen_dont_rip=1;
 			}
 			/* -noskip */
 			else if (!strncmp(p,"noskip",6)) {
@@ -1473,10 +1478,9 @@ void RipCD(JarchSession *session)
 		}
 	}
 
-	while (cur < full || session->rip_backwards) {
+	while (!session->chosen_dont_rip && (cur < full || session->rip_backwards)) {
 		if (session->singlesector)
 			rd=1;
-
 
 		if (session->rip_backwards) {
 			unsigned long curend;
@@ -1613,42 +1617,49 @@ void RipCD(JarchSession *session)
 
 			{
 				unsigned char *p = buf;
-				int c = got;
+				int c = got,zero;
 
 				while (c > 0) {
-					ofs = (juint64)cur * (juint64)RAWSEC;
-					if (dvd.seek(ofs) != ofs) {
-						bitch(BITCHWARNING,"Problem seeking to offset " PRINT64F,ofs);
-						return;
-					}
-					else if (dvd.write(p,RAWSEC) < RAWSEC) {
-						bitch(BITCHWARNING,"Problem writing data at offset " PRINT64F,ofs);
-						return;
+					for (zero=0;zero < (RAWSEC+RAWSUB) && p[zero] == 0;) zero++;
+
+					if (zero == (RAWSEC+RAWSUB)) {
+						bitch(BITCHWARNING,"Sector %llu is completely zero",cur);
 					}
 					else {
-						dvdmap.set(cur,1);
-					}
+						ofs = (juint64)cur * (juint64)RAWSEC;
+						if (dvd.seek(ofs) != ofs) {
+							bitch(BITCHWARNING,"Problem seeking to offset " PRINT64F,ofs);
+							return;
+						}
+						else if (dvd.write(p,RAWSEC) < RAWSEC) {
+							bitch(BITCHWARNING,"Problem writing data at offset " PRINT64F,ofs);
+							return;
+						}
+						else {
+							dvdmap.set(cur,1);
+						}
 
-					DeinterleaveRaw96(p+RAWSEC);
-					ofs = (juint64)cur * (juint64)RAWSUB;
-					if (dvdsub.seek(ofs) != ofs) {
-						bitch(BITCHWARNING,"Problem seeking to offset " PRINT64F,ofs);
-						return;
-					}
-					else if (dvdsub.write(p+RAWSEC,RAWSUB) < RAWSUB) {
-						bitch(BITCHWARNING,"Problem writing data at offset " PRINT64F,ofs);
-						return;
-					}
-					else if (nonzero(p+RAWSEC,96) && QSUB_Check(p+RAWSEC+(12*1)) && PSUB_Check(p+RAWSEC)) {
-						/* WAITAMINUTE: DVD-ROM drives have trouble returning the *right* subchannel data! */
-						unsigned char *q = p+RAWSEC+(12*1);
-						if ((q[0]&0xF) == 1) { /* Mode-1 Q */
-							if (q[1] > 0 && q[1] <= 0x99) { /* actual track */
-								unsigned char exp_msf[3];
+						DeinterleaveRaw96(p+RAWSEC);
+						ofs = (juint64)cur * (juint64)RAWSUB;
+						if (dvdsub.seek(ofs) != ofs) {
+							bitch(BITCHWARNING,"Problem seeking to offset " PRINT64F,ofs);
+							return;
+						}
+						else if (dvdsub.write(p+RAWSEC,RAWSUB) < RAWSUB) {
+							bitch(BITCHWARNING,"Problem writing data at offset " PRINT64F,ofs);
+							return;
+						}
+						else if (nonzero(p+RAWSEC,96) && QSUB_Check(p+RAWSEC+(12*1)) && PSUB_Check(p+RAWSEC)) {
+							/* WAITAMINUTE: DVD-ROM drives have trouble returning the *right* subchannel data! */
+							unsigned char *q = p+RAWSEC+(12*1);
+							if ((q[0]&0xF) == 1) { /* Mode-1 Q */
+								if (q[1] > 0 && q[1] <= 0x99) { /* actual track */
+									unsigned char exp_msf[3];
 
-								CD2MSFnb(exp_msf,cur); /* FIXME: Is my DVD-ROM drive being weird or does the time reflect the M:S:F values of the NEXT sector? */
-								if (dec2bcd(exp_msf[0]) == q[7] && dec2bcd(exp_msf[1]) == q[8] && dec2bcd(exp_msf[2]) == q[9]) {
-									dvdsubmap.set(cur,1);
+									CD2MSFnb(exp_msf,cur); /* FIXME: Is my DVD-ROM drive being weird or does the time reflect the M:S:F values of the NEXT sector? */
+									if (dec2bcd(exp_msf[0]) == q[7] && dec2bcd(exp_msf[1]) == q[8] && dec2bcd(exp_msf[2]) == q[9]) {
+										dvdsubmap.set(cur,1);
+									}
 								}
 							}
 						}
@@ -1710,7 +1721,7 @@ void RipCD(JarchSession *session)
 
 	if (session->rip_subchannel) {
 		cur = 0;
-		bitch(BITCHINFO,"Now trying to recover subchannel");
+		bitch(BITCHINFO,"Now trying to recover subchannel full=%lu",(unsigned long)full);
 		while (cur < full) {
 			curt = time(NULL);
 
@@ -1722,17 +1733,17 @@ void RipCD(JarchSession *session)
 						percent/100,percent%100,
 						cur,d1,expsect,d2);
 
-			if (!dvdsubmap.get(cur) && dvdmap.get(cur)) {
+			if (!dvdsubmap.get(cur) && (session->chosen_dont_rip || dvdmap.get(cur))) {
 				usleep(10000);
 				memset(cmd,0,12);
 				cmd[ 0] = 0xB9;
 				cmd[ 1] = (0 << 2);	/* expected sector type=0 DAP=0 */
 				CD2MSFnb(cmd+3,cur);
 				CD2MSFnb(cmd+6,cur+1);
-				cmd[ 9] = 0xF8;		/* raw sector */
+				cmd[ 9] = 0x00;		/* no data */
 				cmd[10] = 1;		/* raw unformatted P-W bits */
 				fprintf(stderr,"%lu   \x0D",cur); fflush(stderr);
-				if (session->bdev->scsi(cmd,12,buf,(RAWSEC+RAWSUB),1) < (RAWSEC+RAWSUB) || (sense=session->bdev->get_last_sense(NULL)) == NULL) {
+				if (session->bdev->scsi(cmd,12,buf,(RAWSUB),1) < (RAWSUB) || (sense=session->bdev->get_last_sense(NULL)) == NULL) {
 					bitch(BITCHINFO,"Cannot seek to sector %u!",cur);
 					got = 0;
 					cur++;
@@ -1745,22 +1756,22 @@ void RipCD(JarchSession *session)
 				else {
 					juint64 ofs;
 
-					DeinterleaveRaw96(buf+RAWSEC);
+					DeinterleaveRaw96(buf);
 					ofs = (juint64)cur * (juint64)RAWSUB;
 					if (dvdsub.seek(ofs) != ofs) {
 						bitch(BITCHWARNING,"Problem seeking to offset " PRINT64F,ofs);
 						return;
 					}
-					else if (dvdsub.write(buf+RAWSEC,RAWSUB) < RAWSUB) {
+					else if (dvdsub.write(buf,RAWSUB) < RAWSUB) {
 						bitch(BITCHWARNING,"Problem writing data at offset " PRINT64F,ofs);
 						return;
 					}
-					else if (nonzero(buf+RAWSEC,96) && QSUB_Check(buf+RAWSEC+(12*1)) && PSUB_Check(buf+RAWSEC)) {
+					else if (nonzero(buf,96) && QSUB_Check(buf+(12*1)) && PSUB_Check(buf)) {
 						int ok = 1,rt,i;
 
 						/* WAITAMINUTE: DVD-ROM drives have trouble returning the *right* subchannel data! */
 						{
-							unsigned char *q = buf+RAWSEC+(12*1);
+							unsigned char *q = buf+(12*1);
 							if ((q[0]&0xF) == 1) { /* Mode-1 Q */
 								if (q[1] > 0 && q[1] <= 0x99) { /* actual track */
 									unsigned char exp_msf[3];
@@ -1772,91 +1783,6 @@ void RipCD(JarchSession *session)
 									if (dec2bcd(exp_msf[0]) == q[7] && dec2bcd(exp_msf[1]) == q[8] && dec2bcd(exp_msf[2]) == q[9]) {
 										ok = 1;
 									}
-#if 0
-									else if (dec2bcd(exp_msf1[0]) == q[7] && dec2bcd(exp_msf1[1]) == q[8] && dec2bcd(exp_msf1[2]) == q[9]) {
-										bitch(BITCHWARNING,"Drive returned requested subchannel +1 on sector %lu, re-reading",cur);
-
-										if (cur == 0) {
-											ok = 0;
-										}
-										else {
-											memset(cmd,0,12);
-											cmd[ 0] = 0xB9;
-											cmd[ 1] = (0 << 2);	/* expected sector type=0 DAP=0 */
-											CD2MSFnb(cmd+3,cur-1);
-											CD2MSFnb(cmd+6,cur+2);
-											cmd[ 9] = 0xF8;		/* raw sector */
-											cmd[10] = 1;		/* raw unformatted P-W bits */
-											if ((rt=session->bdev->scsi(cmd,12,buf,(RAWSEC+RAWSUB)*3,1)) < ((RAWSEC+RAWSUB)*3) || (sense=session->bdev->get_last_sense(NULL)) == NULL) {
-												bitch(BITCHWARNING,"Re-read subchannel command error rt=%d",rt);
-												ok = 0;
-											}
-											else if ((sense[2]&0xF) != 0) {
-												bitch(BITCHWARNING,"Re-read sense key %u",sense[2]&0xF);
-												ok = 0;
-											}
-											else {
-												DeinterleaveRaw96(buf+RAWSEC);
-												DeinterleaveRaw96(buf+RAWSEC+RAWSUB+RAWSEC);
-												if (nonzero(buf+RAWSEC,96) && QSUB_Check(buf+RAWSEC+(12*1)) && PSUB_Check(buf+RAWSEC) &&
-														nonzero(buf+RAWSEC+RAWSUB+RAWSEC,96) && QSUB_Check(buf+RAWSEC+RAWSUB+RAWSEC+(12*1)) && PSUB_Check(buf+RAWSEC+RAWSUB+RAWSEC)) {
-													ok = 0;
-
-													q = buf+RAWSEC+(12*1);
-													if (ok == 0 && (q[0]&0xF) == 1) { /* Mode-1 Q */
-														if (q[1] > 0 && q[1] <= 0x99) { /* actual track */
-															if (dec2bcd(exp_msf[0]) == q[7] && dec2bcd(exp_msf[1]) == q[8] && dec2bcd(exp_msf[2]) == q[9]) {
-																if (dvdsub.seek(ofs) != ofs) {
-																	bitch(BITCHWARNING,"Problem seeking to offset " PRINT64F,ofs);
-																	return;
-																}
-																else if (dvdsub.write(buf+RAWSEC,RAWSUB) < RAWSUB) {
-																	bitch(BITCHWARNING,"Problem writing data at offset " PRINT64F,ofs);
-																	return;
-																}
-
-																ok = 1; /* got the right data */
-															}
-														}
-													}
-
-													q = buf+RAWSEC+RAWSUB+RAWSEC+(12*1);
-													if (ok == 0 && (q[0]&0xF) == 1) { /* Mode-1 Q */
-														if (q[1] > 0 && q[1] <= 0x99) { /* actual track */
-															if (dec2bcd(exp_msf[0]) == q[7] && dec2bcd(exp_msf[1]) == q[8] && dec2bcd(exp_msf[2]) == q[9]) {
-																if (dvdsub.seek(ofs) != ofs) {
-																	bitch(BITCHWARNING,"Problem seeking to offset " PRINT64F,ofs);
-																	return;
-																}
-																else if (dvdsub.write(buf+RAWSEC+RAWSUB+RAWSEC,RAWSUB) < RAWSUB) {
-																	bitch(BITCHWARNING,"Problem writing data at offset " PRINT64F,ofs);
-																	return;
-																}
-
-																ok = 1; /* got the right data */
-															}
-														}
-													}
-												}
-												else {
-													bitch(BITCHWARNING,"Re-read subchannel error");
-
-													fprintf(stderr,"\t");
-													for (i=0;i < 24;i++) fprintf(stderr,"%02x",buf[RAWSEC+i]);
-													fprintf(stderr," Q_OK=%u CRC=0x%04x P_OK=%u",QSUB_Check(buf+RAWSEC+(12*1)),qsub_crc(buf+RAWSEC+(12*1)),PSUB_Check(buf+RAWSEC));
-													fprintf(stderr,"\n");
-
-													fprintf(stderr,"\t");
-													for (i=0;i < 24;i++) fprintf(stderr,"%02x",buf[RAWSEC+RAWSUB+RAWSEC+i]);
-													fprintf(stderr," Q_OK=%u CRC=0x%04x P_OK=%u",QSUB_Check(buf+RAWSEC+RAWSUB+RAWSEC+(12*1)),qsub_crc(buf+RAWSEC+RAWSUB+RAWSEC+(12*1)),PSUB_Check(buf+RAWSEC+RAWSUB+RAWSEC));
-													fprintf(stderr,"\n");
-
-													ok = 0;
-												}
-											}
-										}
-									}
-#endif
 									else {
 										/* well then where DOES it belong? */
 										unsigned long aloc =	(bcd2dec(q[7]) * 75UL * 60UL) +
@@ -1871,7 +1797,7 @@ void RipCD(JarchSession *session)
 													bitch(BITCHWARNING,"Problem seeking to offset " PRINT64F,ofs);
 													return;
 												}
-												else if (dvdsub.write(buf+RAWSEC,RAWSUB) < RAWSUB) {
+												else if (dvdsub.write(buf,RAWSUB) < RAWSUB) {
 													bitch(BITCHWARNING,"Problem writing data at offset " PRINT64F,ofs);
 													return;
 												}
@@ -1888,101 +1814,6 @@ void RipCD(JarchSession *session)
 
 						if (ok) dvdsubmap.set(cur,1);
 					}
-#if 0
-					/* Apparently this never works >:( */
-					else {
-						int ok = 1,rt,i;
-
-						/* WAITAMINUTE: DVD-ROM drives have trouble returning the *right* subchannel data! */
-						{
-							unsigned char *q;
-							unsigned char exp_msf[3];
-							unsigned char exp_msf1[3];
-
-							CD2MSFnb(exp_msf,cur); /* FIXME: Is my DVD-ROM drive being weird or does the time reflect the M:S:F values of the NEXT sector? */
-							CD2MSFnb(exp_msf1,cur+1); /* FIXME: Is my DVD-ROM drive being weird or does the time reflect the M:S:F values of the NEXT sector? */
-
-							if (cur == 0) {
-								ok = 0;
-							}
-							else {
-								memset(cmd,0,12);
-								cmd[ 0] = 0xB9;
-								cmd[ 1] = (0 << 2);	/* expected sector type=0 DAP=0 */
-								CD2MSFnb(cmd+3,cur-1);
-								CD2MSFnb(cmd+6,cur+2);
-								cmd[ 9] = 0xF8;		/* raw sector */
-								cmd[10] = 1;		/* raw unformatted P-W bits */
-								bitch(BITCHINFO,"Attempting to force read subchannel %lu",cur);
-								if (session->bdev->scsi(cmd,12,buf,(RAWSEC+RAWSUB)*3,1) < ((RAWSEC+RAWSUB)*3) || (sense=session->bdev->get_last_sense(NULL)) == NULL || (sense[2]&0xF) != 0) {
-									bitch(BITCHWARNING,"Re-read subchannel command error");
-									ok = 0;
-								}
-								else {
-									DeinterleaveRaw96(buf+RAWSEC);
-									DeinterleaveRaw96(buf+RAWSEC+RAWSUB+RAWSEC);
-									if (nonzero(buf+RAWSEC,96) && QSUB_Check(buf+RAWSEC+(12*1)) && PSUB_Check(buf+RAWSEC) &&
-											nonzero(buf+RAWSEC+RAWSUB+RAWSEC,96) && QSUB_Check(buf+RAWSEC+RAWSUB+RAWSEC+(12*1)) && PSUB_Check(buf+RAWSEC+RAWSUB+RAWSEC)) {
-										ok = 0;
-
-										q = buf+RAWSEC+(12*1);
-										if (ok == 0 && (q[0]&0xF) == 1) { /* Mode-1 Q */
-											if (q[1] > 0 && q[1] <= 0x99) { /* actual track */
-												if (dec2bcd(exp_msf[0]) == q[7] && dec2bcd(exp_msf[1]) == q[8] && dec2bcd(exp_msf[2]) == q[9]) {
-													if (dvdsub.seek(ofs) != ofs) {
-														bitch(BITCHWARNING,"Problem seeking to offset " PRINT64F,ofs);
-														return;
-													}
-													else if (dvdsub.write(buf+RAWSEC,RAWSUB) < RAWSUB) {
-														bitch(BITCHWARNING,"Problem writing data at offset " PRINT64F,ofs);
-														return;
-													}
-
-													ok = 1; /* got the right data */
-												}
-											}
-										}
-
-										q = buf+RAWSEC+RAWSUB+RAWSEC+(12*1);
-										if (ok == 0 && (q[0]&0xF) == 1) { /* Mode-1 Q */
-											if (q[1] > 0 && q[1] <= 0x99) { /* actual track */
-												if (dec2bcd(exp_msf[0]) == q[7] && dec2bcd(exp_msf[1]) == q[8] && dec2bcd(exp_msf[2]) == q[9]) {
-													if (dvdsub.seek(ofs) != ofs) {
-														bitch(BITCHWARNING,"Problem seeking to offset " PRINT64F,ofs);
-														return;
-													}
-													else if (dvdsub.write(buf+RAWSEC+RAWSUB+RAWSEC,RAWSUB) < RAWSUB) {
-														bitch(BITCHWARNING,"Problem writing data at offset " PRINT64F,ofs);
-														return;
-													}
-
-													ok = 1; /* got the right data */
-												}
-											}
-										}
-									}
-									else {
-										bitch(BITCHWARNING,"Re-read subchannel error");
-
-										fprintf(stderr,"\t");
-										for (i=0;i < 24;i++) fprintf(stderr,"%02x",buf[RAWSEC+i]);
-										fprintf(stderr," Q_OK=%u CRC=0x%04x P_OK=%u",QSUB_Check(buf+RAWSEC+(12*1)),qsub_crc(buf+RAWSEC+(12*1)),PSUB_Check(buf+RAWSEC));
-										fprintf(stderr,"\n");
-
-										fprintf(stderr,"\t");
-										for (i=0;i < 24;i++) fprintf(stderr,"%02x",buf[RAWSEC+RAWSUB+RAWSEC+i]);
-										fprintf(stderr," Q_OK=%u CRC=0x%04x P_OK=%u",QSUB_Check(buf+RAWSEC+RAWSUB+RAWSEC+(12*1)),qsub_crc(buf+RAWSEC+RAWSUB+RAWSEC+(12*1)),PSUB_Check(buf+RAWSEC+RAWSUB+RAWSEC));
-										fprintf(stderr,"\n");
-
-										ok = 0;
-									}
-								}
-							}
-						}
-
-						if (ok) dvdsubmap.set(cur,1);
-					}
-#endif
 				}
 			}
 
@@ -2193,6 +2024,7 @@ int main(int argc,char **argv)
 		session.bdev = chosen_bio;
 		session.chosen_force_info = chosen_force_info;
 		session.chosen_force_rip = chosen_force_rip;
+		session.chosen_dont_rip = chosen_dont_rip;
 		session.rip_noskip = rip_noskip;
 		session.rip_assume_rate = rip_assume_rate;
 		session.rip_verify = rip_verify;

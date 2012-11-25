@@ -18,5 +18,6 @@ rm -f cdrom-image.timeout.ripfail.ripmap
 for i in {1,2,3,4,5,6,7,8,9}; do jarchcd2 -dev /dev/$dev -rip -single -noskip; jarchcd2 -dev /dev/$dev -rip -single -noskip -verify; done
 rm -f cdrom-image.timeout.ripfail.ripmap
 jarchcd2 -dev /dev/$dev -rip -single -noskip; jarchcd2 -dev /dev/$dev -rip -single -noskip -verify
+jarchcd2 -dev /dev/$dev -rip -single -sub
 jarch-verify-data <cdrom-image.bin
 
