@@ -1917,7 +1917,7 @@ void RipCD(JarchSession *session)
 
 		prep = curt;
 		cur++;
-		if (cur == 200) cur = 0xFFFFFFFF - 0xF0001000;
+		if (cur == 160) break;
 	}
 
 	if (recover)
