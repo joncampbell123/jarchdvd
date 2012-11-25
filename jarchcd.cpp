@@ -1560,6 +1560,11 @@ void RipCD(JarchSession *session)
 		if ((rdr=session->bdev->scsi(cmd,12,buf,(RAWSEC+RAWSUB)*sz,1)) < ((RAWSEC+RAWSUB)*sz) || (sense=session->bdev->get_last_sense(NULL)) == NULL) {
 			nt = time(NULL);
 			bitch(BITCHINFO,"Cannot seek to sector %u! rdr=%d errno=%s sense=%p",cur,rdr,strerror(errno),sense);
+			if (sense != NULL) {
+				bitch(BITCHINFO,"  Sense bytes %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
+					sense[ 0],sense[ 1],sense[ 2],sense[ 3],sense[ 4],sense[ 5],
+					sense[ 6],sense[ 7],sense[ 8],sense[ 9],sense[10],sense[11]);
+			}
 			got = 0;
 			cur++;
 			rd=1;
