@@ -1545,6 +1545,7 @@ void RipCD(JarchSession *session)
 		/* rip! */
 		bitch_indent();
 
+		int rdr;
 		time_t ot,nt;
 		ot = time(NULL);
 
@@ -1555,9 +1556,10 @@ void RipCD(JarchSession *session)
 		CD2MSFnb(cmd+6,cur+sz);
 		cmd[ 9] = 0xF8;		/* raw sector */
 		cmd[10] = 1;		/* raw unformatted P-W bits */
-		if (session->bdev->scsi(cmd,12,buf,(RAWSEC+RAWSUB)*sz,1) < ((RAWSEC+RAWSUB)*sz) || (sense=session->bdev->get_last_sense(NULL)) == NULL) {
+		errno = 0;
+		if ((rdr=session->bdev->scsi(cmd,12,buf,(RAWSEC+RAWSUB)*sz,1)) < ((RAWSEC+RAWSUB)*sz) || (sense=session->bdev->get_last_sense(NULL)) == NULL) {
 			nt = time(NULL);
-			bitch(BITCHINFO,"Cannot seek to sector %u!",cur);
+			bitch(BITCHINFO,"Cannot seek to sector %u! rdr=%d errno=%s sense=%p",cur,rdr,strerror(errno),sense);
 			got = 0;
 			cur++;
 			rd=1;
