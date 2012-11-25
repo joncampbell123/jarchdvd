@@ -1833,17 +1833,19 @@ void RipCD(JarchSession *session)
 
 	cur = 0;
 	bitch(BITCHINFO,"Now trying to recover lead-in");
-	while (cur < 75UL) {
-		unsigned long sn = cur + 0xF0000000UL;
+	while (cur < 0x10000000UL) {
+		unsigned long sn = 0xFFFFFFFF - cur;
+		int rdr;
+
 		curt = time(NULL);
 
 		/* compute percent ratio */
-		percent = (int)((((juint64)cur) * ((juint64)10000) / ((juint64)full)));
+		percent = (int)((((juint64)cur) * ((juint64)10000) / ((juint64)0x10000000UL)));
 
 		if (prep != curt)
-			bitch(BITCHINFO,"Rip: %%%3u.%02u @ %8u %.2fx, expected %8u %.1fx",
+			bitch(BITCHINFO,"Rip: %%%3u.%02u @ %08lX %.2fx, expected %8u %.1fx",
 				percent/100,percent%100,
-				cur,d1,expsect,d2);
+				sn,d1,expsect,d2);
 
 		if (!dvdleadmap.get(cur)) {
 			usleep(10000);
@@ -1859,10 +1861,17 @@ void RipCD(JarchSession *session)
 			cmd[ 8] = (unsigned char)(1);
 			cmd[ 9] = 0xF8;		/* raw sector */
 			cmd[10] = 1;		/* raw unformatted P-W bits */
-			if (session->bdev->scsi(cmd,12,buf,(RAWSEC+RAWSUB),1) < (RAWSEC+RAWSUB) || (sense=session->bdev->get_last_sense(NULL)) == NULL) {
-				bitch(BITCHINFO,"Cannot seek to sector %u!",cur);
+			if ((rdr=session->bdev->scsi(cmd,12,buf,(RAWSEC+RAWSUB),1)) < (RAWSEC+RAWSUB) || (sense=session->bdev->get_last_sense(NULL)) == NULL) {
+				bitch(BITCHINFO,"Cannot seek to sector 0x%08lX! rdr=%d errno=%s sense=%p",sn,rdr,strerror(errno),sense);
+				if (sense != NULL) {
+					bitch(BITCHINFO,"  Sense bytes %02X %02X, %02X %02X, %02X %02X, %02X %02X, %02X %02X, %02X %02X",
+						sense[ 0],sense[ 1],sense[ 2],sense[ 3],sense[ 4],sense[ 5],
+						sense[ 6],sense[ 7],sense[ 8],sense[ 9],sense[10],sense[11]);
+					bitch(BITCHINFO,"           >> %02X %02X, %02X %02X, %02X %02X",
+						sense[12],sense[13],sense[14],sense[15],sense[16],sense[17]);
+				}
+
 				got = 0;
-				cur++;
 				rd=1;
 			}
 			else if ((sense[2]&0xF) != 0) {
