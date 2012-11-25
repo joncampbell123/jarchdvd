@@ -1220,7 +1220,7 @@ void RipCD(JarchSession *session)
 	buf = session->bdev->buffer();
 	rdmax = session->bdev->buffersize();
 	rdmax = (rdmax * 2048) / (RAWSEC+RAWSUB);
-	if (rdmax > 16) rdmax = 16;
+	if (rdmax > 24) rdmax = 24;
 	rd = rdmax;
 	lastend = cur;
 	
