@@ -158,6 +158,11 @@ static uint32_t edc_compute(
     return edc;
 }
 
+enum {
+	RAW96=1,
+	DEINT96=4
+};
+
 static FILE*			chosen_bitch_out;
 static char			chosen_bitch_out_fname[256];
 static char			chosen_input_block_dev[256];
@@ -185,6 +190,7 @@ static int			show_todo=0;
 static int			poi_dumb=0;
 static int			singlesector=0;
 static string			driver_name;
+static int			p_w_mode = RAW96;
 // test modes are:
 //   0 = no test
 //   1 = KeyStorage test
@@ -493,6 +499,14 @@ int params(int argc,char **argv)
 			else if (!strncmp(p,"rip",3)) {
 				chosen_force_rip=1;
 			}
+			/* -d96 */
+			else if (!strncmp(p,"d96",3)) {
+				p_w_mode=DEINT96;
+			}
+			/* -r96 */
+			else if (!strncmp(p,"r96",3)) {
+				p_w_mode=RAW96;
+			}
 			/* -no-rip */
 			else if (!strncmp(p,"no-rip",6)) {
 				chosen_dont_rip=1;
@@ -606,6 +620,8 @@ int params(int argc,char **argv)
 				bitch(BITCHINFO,"    Linux:");
 				bitch(BITCHINFO,"         linux_sg           SG ioctl method");
 				bitch(BITCHINFO,"         linux_packet       CDROM packet ioctl method");
+				bitch(BITCHINFO,"-d96                        Read subchannel data as 96-byte deinterlaved");
+				bitch(BITCHINFO,"-r96                        Read subchannel data as 96-byte raw non-interleaved");
 				bitch(BITCHINFO,"-bout <file>                Log output to <file>, append if exists");
 				bitch(BITCHINFO,"-test-keystore              DIAGNOSTIC: Test KeyStorage code");
 				bitch(BITCHINFO,"-info                       Gather media info, even if already done");
@@ -631,6 +647,8 @@ int params(int argc,char **argv)
 				bitch(BITCHINFO,"-expandfill                 Use expanding fill rip method");
 				bitch(BITCHINFO,"-periodic <n>               Rip only every nth sector");
 				bitch(BITCHINFO,"-single                     Rip single sectors only");
+				bitch(BITCHINFO,"Subchannel data is read using raw 96-byte mode. If your drive is modern and");
+				bitch(BITCHINFO,"does not return any subchannel data, try -d96");
 				return 0;
 			}
 		}
@@ -1555,7 +1573,7 @@ void RipCD(JarchSession *session)
 		CD2MSFnb(cmd+3,cur);
 		CD2MSFnb(cmd+6,cur+sz);
 		cmd[ 9] = 0xF8;		/* raw sector */
-		cmd[10] = 1;		/* raw unformatted P-W bits */
+		cmd[10] = p_w_mode;
 		errno = 0;
 		if ((rdr=session->bdev->scsi(cmd,12,buf,(RAWSEC+RAWSUB)*sz,1)) < ((RAWSEC+RAWSUB)*sz) || (sense=session->bdev->get_last_sense(NULL)) == NULL) {
 			nt = time(NULL);
@@ -1648,7 +1666,7 @@ void RipCD(JarchSession *session)
 							dvdmap.set(cur,1);
 						}
 
-						DeinterleaveRaw96(p+RAWSEC);
+						if (p_w_mode == RAW96) DeinterleaveRaw96(p+RAWSEC);
 						ofs = (juint64)cur * (juint64)RAWSUB;
 						if (dvdsub.seek(ofs) != ofs) {
 							bitch(BITCHWARNING,"Problem seeking to offset " PRINT64F,ofs);
@@ -1750,7 +1768,7 @@ void RipCD(JarchSession *session)
 				CD2MSFnb(cmd+3,cur);
 				CD2MSFnb(cmd+6,cur+1);
 				cmd[ 9] = 0x00;		/* no data */
-				cmd[10] = 1;		/* raw unformatted P-W bits */
+				cmd[10] = p_w_mode;	/* raw unformatted P-W bits */
 				fprintf(stderr,"%lu   \x0D",cur); fflush(stderr);
 				if (session->bdev->scsi(cmd,12,buf,(RAWSUB),1) < (RAWSUB) || (sense=session->bdev->get_last_sense(NULL)) == NULL) {
 					bitch(BITCHINFO,"Cannot seek to sector %u!",cur);
@@ -1765,7 +1783,7 @@ void RipCD(JarchSession *session)
 				else {
 					juint64 ofs;
 
-					DeinterleaveRaw96(buf);
+					if (p_w_mode == RAW96) DeinterleaveRaw96(buf);
 					ofs = (juint64)cur * (juint64)RAWSUB;
 					if (dvdsub.seek(ofs) != ofs) {
 						bitch(BITCHWARNING,"Problem seeking to offset " PRINT64F,ofs);
@@ -1860,7 +1878,7 @@ void RipCD(JarchSession *session)
 			cmd[ 7] = (unsigned char)(1 >> 8);
 			cmd[ 8] = (unsigned char)(1);
 			cmd[ 9] = 0xF8;		/* raw sector */
-			cmd[10] = 1;		/* raw unformatted P-W bits */
+			cmd[10] = p_w_mode;	/* raw unformatted P-W bits */
 			if ((rdr=session->bdev->scsi(cmd,12,buf,(RAWSEC+RAWSUB),1)) < (RAWSEC+RAWSUB) || (sense=session->bdev->get_last_sense(NULL)) == NULL) {
 				bitch(BITCHINFO,"Cannot seek to sector 0x%08lX! rdr=%d errno=%s sense=%p",sn,rdr,strerror(errno),sense);
 				if (sense != NULL) {
@@ -1881,7 +1899,7 @@ void RipCD(JarchSession *session)
 			else {
 				juint64 ofs;
 
-				DeinterleaveRaw96(buf+RAWSEC);
+				if (p_w_mode == RAW96) DeinterleaveRaw96(buf+RAWSEC);
 				ofs = (juint64)cur * (juint64)(RAWSEC+RAWSUB);
 				if (dvdlead.seek(ofs) != ofs) {
 					bitch(BITCHWARNING,"Problem seeking to offset " PRINT64F,ofs);
@@ -1899,6 +1917,7 @@ void RipCD(JarchSession *session)
 
 		prep = curt;
 		cur++;
+		if (cur == 200) cur = 0xFFFFFFFF - 0xF0001000;
 	}
 
 	if (recover)
