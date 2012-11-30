@@ -183,6 +183,7 @@ static int			rip_cmi=0;
 static int			rip_assume=0;
 static int			rip_backwards=0;
 static int			force_genpoi=0;
+static int			minsector=0;
 static int			force_authpoi=0;
 static int			skip_rip=0;
 static int			css_decrypt_inplace=0;
@@ -605,6 +606,11 @@ int params(int argc,char **argv)
 			else if (!strncmp(p,"verify",6)) {
 				rip_verify=1;
 			}
+			else if (!strncmp(p,"min",3)) {
+				i++;
+				if (i >= argc) return 0;
+				minsector = atoi(argv[i]);
+			}
 			else if (!strncmp(p,"verify-read",6+5)) {
 				rip_verify_by_reading=1;
 			}
@@ -647,6 +653,8 @@ int params(int argc,char **argv)
 				bitch(BITCHINFO,"-expandfill                 Use expanding fill rip method");
 				bitch(BITCHINFO,"-periodic <n>               Rip only every nth sector");
 				bitch(BITCHINFO,"-single                     Rip single sectors only");
+				bitch(BITCHINFO,"-min <n>                    Ignore sectors below N (use if your drive has long");
+				bitch(BITCHINFO,"                            timeouts reading sectors 0-150)");
 				bitch(BITCHINFO,"Subchannel data is read using raw 96-byte mode. If your drive is modern and");
 				bitch(BITCHINFO,"does not return any subchannel data, try -d96");
 				return 0;
@@ -1496,6 +1504,7 @@ void RipCD(JarchSession *session)
 		}
 	}
 
+	if (cur < minsector) cur = minsector;
 	while (!session->chosen_dont_rip && (cur < full || session->rip_backwards)) {
 		if (session->singlesector)
 			rd=1;
