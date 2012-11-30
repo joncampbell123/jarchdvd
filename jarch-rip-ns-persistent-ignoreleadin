@@ -1,0 +1,23 @@
+#!/bin/bash
+dev="$1"
+if [[ !( -e "/dev/$dev" ) ]]; then
+	echo Device $dev does not exist
+	exit 1
+fi
+jarchcd2 -dev /dev/$dev -rip -min 150
+jarchcd2 -dev /dev/$dev -rip -single -min 150
+#jarch-audio-to-wav
+jarchcd2 -dev /dev/$dev -rip -verify -min 150
+jarchcd2 -dev /dev/$dev -rip -min 150
+jarchcd2 -dev /dev/$dev -rip -single -noskip -min 150
+jarchcd2 -dev /dev/$dev -rip -verify -min 150
+jarchcd2 -dev /dev/$dev -rip -noskip -min 150
+#jarch-audio-to-wav
+for i in {1,2,3,4,5,6,7,8,9}; do jarchcd2 -dev /dev/$dev -rip -single -noskip -min 150; jarchcd2 -dev /dev/$dev -rip -single -noskip -verify -min 150; done
+rm -f cdrom-image.timeout.ripfail.ripmap
+for i in {1,2,3,4,5,6,7,8,9}; do jarchcd2 -dev /dev/$dev -rip -single -noskip -min 150; jarchcd2 -dev /dev/$dev -rip -single -noskip -verify -min 150; done
+rm -f cdrom-image.timeout.ripfail.ripmap
+jarchcd2 -dev /dev/$dev -rip -single -noskip -min 150; jarchcd2 -dev /dev/$dev -rip -single -noskip -verify -min 150
+#jarchcd2 -dev /dev/$dev -rip -single -sub
+jarch-verify-data <cdrom-image.bin
+
