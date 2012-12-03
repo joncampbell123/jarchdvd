@@ -44,6 +44,7 @@ int blockio_base_read(JarchBlockIO *bdev,juint64 sector,unsigned char *buf,int N
 	unsigned char cmd[12];
 	unsigned char *sense;
 	int retr=1,err;
+	size_t sl=0;
 
 	memset(buf,0,N*2048);
 	cmd[ 0] = 0xA8;		/* SCSI MMC-2 reference says to use READ(12) for DVD media */
@@ -65,9 +66,15 @@ int blockio_base_read(JarchBlockIO *bdev,juint64 sector,unsigned char *buf,int N
 	if (err & (2048 - 1))
 		bitch(BITCHWARNING,"Read returned data not a multiple of sector size");
 
-	sense = bdev->get_last_sense(NULL);
+	sense = bdev->get_last_sense(&sl);
 	if (sense != NULL) {
 		unsigned char key = sense[2] & 0x0F;
+
+		if (sl != 0) {
+			fprintf(stderr,"Sense(%lu) ",(unsigned long)sl);
+			for (size_t i=0;i < sl;i++) fprintf(stderr,"%02X ",sense[i]);
+			fprintf(stderr,"\n");
+		}
 
 		if (sense[2] & 0x20) {
 			bitch(BITCHWARNING,"SCSI device says read failed because medium sector size does not match requested length");
@@ -77,6 +84,9 @@ int blockio_base_read(JarchBlockIO *bdev,juint64 sector,unsigned char *buf,int N
 			bitch(BITCHWARNING,"SCSI command failed sense key %u",key);
 			err = -1;
 		}
+	}
+	else {
+		bitch(BITCHWARNING,"No sense data");
 	}
 
 	return (err >= 0) ? (err >> 11) : err;

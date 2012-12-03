@@ -30,6 +30,7 @@ private:
 	unsigned char*			alloc_buffer;
 	juint64				next_sector;
 	struct request_sense		last_sense;
+	size_t				last_sense_len;
 };
 
 #endif

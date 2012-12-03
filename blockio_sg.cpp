@@ -21,64 +21,13 @@ JarchBlockIO_SG::JarchBlockIO_SG()
 	alloc_buffer = NULL;
 	alloc_sectors = 0;
 	next_sector = 0;
+	sense_len = 0;
 	dev_fd = -1;
 }
 
 JarchBlockIO_SG::~JarchBlockIO_SG()
 {
 	close();
-}
-
-int JarchBlockIO_SG::atapi_read(juint64 sector,unsigned char *buf,int N)
-{
-	unsigned char cmd[12],sense[60];
-	struct sg_io_hdr sg;
-	int retr=1,err;
-
-	memset(buf,0,N*2048);
-	memset(&sg,0,sizeof(sg));
-	sg.interface_id         = 'S';
-	sg.dxfer_direction      = SG_DXFER_FROM_DEV;
-	sg.cmd_len              = 12;
-	sg.mx_sb_len            = sizeof(sense);
-	sg.sbp                  = sense;
-	sg.sb_len_wr            = 0;
-	sg.iovec_count          = 0;
-	sg.dxfer_len            = N*2048;
-	sg.dxferp               = buf;
-	sg.cmdp                 = cmd;
-	sg.timeout              = 10000;		/* 10 second */
-	sg.flags                = 0;
-	sg.resid                = 0;
-	sg.duration             = 0;
-	cmd[ 0] = 0xA8;		/* SCSI MMC-2 reference says to use READ(12) for DVD media */
-	cmd[ 1] = 0x00;
-	cmd[ 2] = sector >> 24;
-	cmd[ 3] = sector >> 16;
-	cmd[ 4] = sector >> 8;
-	cmd[ 5] = sector;
-	cmd[ 6] = N >> 24;
-	cmd[ 7] = N >> 16;
-	cmd[ 8] = N >> 8;
-	cmd[ 9] = N;
-	cmd[10] = 0;
-	cmd[11] = 0;
-	err = ioctl(dev_fd,SG_IO,(void*)(&sg));
-
-	if (err < 0)
-		return -1;
-
-	if (!(sg.masked_status == 0 || sg.masked_status == 2))
-		return -1;
-
-	if (sg.resid > 0) {
-		N = sg.dxfer_len - sg.resid;
-		if (N < 0) N = 0;
-		if (N & (2048 - 1)) bitch(BITCHWARNING,"Read returned data not a multiple of sector size");
-		N >>= 11;
-	}
-
-	return N;
 }
 
 int JarchBlockIO_SG::open(const char *given_name)
@@ -99,14 +48,14 @@ int JarchBlockIO_SG::open(const char *given_name)
 	bitch(BITCHINFO,"JarchBlockIO_SG: Linux SG_IO ioctl driver");
 	bitch(BITCHINFO,"JarchBlockIO_SG: Using device %s",name);
 
-	dev_fd = ::open(name,O_RDONLY | O_LARGEFILE | O_NONBLOCK);
+	dev_fd = ::open(name,O_RDWR | O_LARGEFILE | O_NONBLOCK | O_EXCL);
 	if (dev_fd < 0) {
 		bitch(BITCHERROR,"JarchBlockIO_SG: Unable to open block device %s (errno = %s)",name,strerror(errno));
 		return -1;
 	}
 
 	/* we can do large transfers. the problem is that it really slows down the system! */
-	alloc_sectors = 64;
+	alloc_sectors = (31*1024) / 2048;
 	bitch(BITCHINFO,"Allocating memory to hold %d sectors",alloc_sectors);
 
 	alloc_buffer = (unsigned char*)malloc(alloc_sectors*2048);
@@ -145,22 +94,28 @@ int JarchBlockIO_SG::buffersize()
 
 int JarchBlockIO_SG::read(int sectors)
 {
-	int rd;
+	int rd,ret=0,dord;
 
 	if (dev_fd < 0)
 		return 0;
 
-	if (sectors < 0)
+	if (sectors <= 0)
 		return 0;
 
-	if (sectors > alloc_sectors)
-		sectors = alloc_sectors;
+	do {
+		if (sectors > alloc_sectors)
+			dord = alloc_sectors;
+		else
+			dord = sectors;
 
-	rd = atapi_read(next_sector,alloc_buffer,sectors);
-	if (rd <= 0)		rd = 0;
-	else			next_sector += rd;
+		rd = blockio_base_read(this,next_sector,alloc_buffer,dord);
+		if (rd < dord) break;
+		next_sector += rd;
+		sectors -= rd;
+		ret += rd;
+	} while (sectors > 0);
 
-	return rd;
+	return ret;
 }
 
 int JarchBlockIO_SG::seek(juint64 s)
@@ -189,22 +144,69 @@ int JarchBlockIO_SG::scsi(unsigned char *cmd,int cmdlen,unsigned char *data,int 
 	sg.cmd_len              = cmdlen;
 	sg.mx_sb_len            = sizeof(sense);
 	sg.sbp                  = sense;
-	sg.sb_len_wr            = 0;
-	sg.iovec_count          = 0;
 	sg.dxfer_len            = datalen;
 	sg.dxferp               = data;
 	sg.cmdp                 = cmd;
-	sg.timeout              = 10000;		/* 10 second */
-	sg.flags                = 0;
-	sg.resid                = 0;
-	sg.duration             = 0;
+	sg.timeout              = 30000;		/* 10 second */
+	sg.flags                = SG_FLAG_DIRECT_IO;
 	if (dir == 1)		sg.dxfer_direction = SG_DXFER_FROM_DEV;
 	else if (dir == 2)	sg.dxfer_direction = SG_DXFER_TO_DEV;
 	else			sg.dxfer_direction = SG_DXFER_NONE;
 
 	if (ioctl(dev_fd,SG_IO,(void*)(&sg)) < 0) {
+		sense_len = sg.sb_len_wr;
 		bitch(BITCHWARNING,"SG_IO ioctl failed errno %s",strerror(errno));
 		return -1;
+	}
+
+	sense_len = sg.sb_len_wr;
+	if (sg.driver_status != 0) {
+		bitch(BITCHWARNING,"SG_IO OK but driver status 0x%02X",sg.driver_status);
+		return -1;
+	}
+	if (sg.masked_status != 0) {
+		bitch(BITCHWARNING,"SG_IO OK but mask status 0x%02X masked 0x%02X",sg.status,sg.masked_status);
+		return -1;
+	}
+	if (sg.host_status != 0) {
+		bitch(BITCHWARNING,"SG_IO OK but host status 0x%02X",sg.host_status);
+		return -1;
+	}
+
+	/* FIXME: I'm not getting very good sense data for sector read failures from my
+	 *        LG Bluray reader USB drive. This results in sector read failures getting
+	 *        counted as successfuly reads and causing portions of the DVD rip to have
+	 *        garbage data. */
+	if ((sg.info & SG_INFO_OK_MASK) != SG_INFO_OK) {
+		if (sense_len == 0) {
+			struct sg_io_hdr sg2;
+			unsigned char scmd[6] = {0x03,0x00,0x00,0x00,sizeof(sense)/*allocation length*/,0x00};
+
+			bitch(BITCHWARNING,"SG ioctl did not return sense data, fetching");
+
+			memset(&sg2,0,sizeof(sg2));
+			memset(sense,0,sizeof(sense));
+			sg2.interface_id         = 'S';
+			sg2.cmd_len              = 6;
+			sg2.sbp                  = NULL;
+			sg2.dxfer_len            = sizeof(sense);
+			sg2.dxferp               = sense;
+			sg2.cmdp                 = scmd;
+			sg2.timeout              = 30000;
+			sg2.flags                = SG_FLAG_DIRECT_IO;
+			sg2.dxfer_direction      = SG_DXFER_FROM_DEV;
+
+			if (ioctl(dev_fd,SG_IO,(void*)(&sg2)) < 0) {
+				bitch(BITCHWARNING,"SG ioctl did not return sense data either");
+			}
+			else if (sg2.resid != 0) {
+				sense_len = sg2.dxfer_len - sg2.resid;
+			}
+			else {
+				/* They aren't returning residual either */
+				sense_len = 7 + sense[7]; /* <- FIXME: Is this right? */
+			}
+		}
 	}
 
 	if (sg.resid > sg.dxfer_len) {
@@ -221,7 +223,7 @@ int JarchBlockIO_SG::fd()
 }
 
 unsigned char* JarchBlockIO_SG::get_last_sense(size_t *size) {
-	if (size != NULL) *size = sizeof(sense);
+	if (size != NULL) *size = sense_len;
 	return sense;
 }
 

@@ -396,6 +396,7 @@ void RipDVD(JarchSession *session)
 					got=0;
 				}
 				else {
+					got=0;
 					cur++;
 					rd=1;
 				}
