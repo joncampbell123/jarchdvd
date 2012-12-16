@@ -1,4 +1,4 @@
-all: jarchcd2 jarchdvd2 jarchdvdkeys config.h jarch-videocd-to-mpg jarch-verify-data jarchdvd-out-iso jarchdvd-out-vob
+all: jarchcd2 jarchdvd2 jarchdvdkeys config.h jarch-videocd-to-mpg jarch-verify-data jarchdvd-out-iso jarchdvd-out-vob jarch-cdrip-to-iso
 
 CFLAGS = -DLINUX -D_FILE_OFFSET_BITS=64
 
@@ -17,7 +17,7 @@ install: jarchdvd2
 	cp -fv jarchdvd2.1 $(ROOT)/usr/man/man1/
 	cp -fv jarchdvd-out-iso $(ROOT)/usr/bin/
 	cp -fv jarchdvdkeys.1 $(ROOT)/usr/man/man1/
-	cp -fv jarchdvd-out-vob jarch-verify-data jarch-videocd-to-mpg jarch-{audio-to-wav,clear,rip,do-rip,rip-ns,do-rip-ns,rip-ns-persistent,do-rip-ns-persistent,rip-ns-persistent-ignoreleadin} $(ROOT)/usr/bin/
+	cp -fv jarch-cdrip-to-iso jarchdvd-out-vob jarch-verify-data jarch-videocd-to-mpg jarch-{audio-to-wav,clear,rip,do-rip,rip-ns,do-rip-ns,rip-ns-persistent,do-rip-ns-persistent,rip-ns-persistent-ignoreleadin} $(ROOT)/usr/bin/
 
 JARCHCD_OBJLIST = bitchin.o blockio.o blockio_iokit.o blockio_ntscsi.o blockio_std.o blockio_packet.o blockio_sg.o jarchcd.o util.o rippedmap.o lsimage.o
 JARCHDVD_OBJLIST = bitchin.o blockio.o blockio_iokit.o blockio_ntscsi.o blockio_std.o blockio_packet.o blockio_sg.o jarchdvd.o util.o keystore.o rippedmap.o lsimage.o mediagather.o css-auth.o css-cipher.o dvd-auth.o ripdvd.o ripdvd_dvdvideo.o udf.o
@@ -37,6 +37,9 @@ jarchdvd2: $(JARCHDVD_OBJLIST)
 
 jarchdvdkeys: jarchdvdkeys.o keystore.o bitchin.o util.o
 	g++ -o jarchdvdkeys jarchdvdkeys.o keystore.o bitchin.o util.o
+
+jarch-cdrip-to-iso: jarch-cdrip-to-iso.c
+	gcc $(CFLAGS) -o $@ $<
 
 jarch-verify-data: jarch-verify-data.c
 	gcc $(CFLAGS) -o $@ $<
