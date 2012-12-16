@@ -121,6 +121,7 @@ static uint32_t edc_compute(
 int main(int argc,char **argv) {
 	int video = 0,video2 = 0;
 	unsigned long sec,chk;
+	int skip = 150;
 	char name[32];
 	int ofd = -1;
 
@@ -133,6 +134,12 @@ int main(int argc,char **argv) {
 	eccedc_init();
 	while (read(0,sector,sizeof(sector)) == sizeof(sector)) {
 		sec++;
+
+		if (skip > 0) {
+			skip--;
+			continue;
+		}
+
 		if (!memcmp(sector,"\x00" "\xFF\xFF\xFF\xFF\xFF" "\xFF\xFF\xFF\xFF\xFF" "\x00",12)) {
 			/* is this mode 1? */
 			if ((sector[15] & 3) == 1) {
