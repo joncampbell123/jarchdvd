@@ -4,7 +4,7 @@ CFLAGS = -DLINUX -D_FILE_OFFSET_BITS=64
 
 clean:
 	rm -f *.exe *.o jarchcd2 jarchdvd2 jarchdvdkeys
-	rm -f -R Debug Release "Debug WNASPI32" "Release WNASPI32" jarch-videocd-to-mpg jarch-verify-data jarchdvd-out-vob jarchdvd-out-iso
+	rm -f -R Debug Release "Debug WNASPI32" "Release WNASPI32" jarch-videocd-to-mpg jarch-verify-data jarchdvd-out-vob jarchdvd-out-iso jarch-cdrip-to-iso
 	rm -f *.ncb *.opt *.plg *.ilk
 	rm -f *~
 
