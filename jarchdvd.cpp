@@ -52,6 +52,7 @@ static JarchBlockIO*		chosen_bio=NULL;
 static int			chosen_test_mode=0;
 static int			chosen_force_info=0;
 static int			chosen_force_rip=0;
+static int			rip_dumbpoi_interval=0;
 static int			rip_periodic=0;
 static int			rip_noskip=0;
 static double			rip_assume_rate=0.0;
@@ -178,6 +179,12 @@ int params(int argc,char **argv)
 			else if (!strncmp(p,"cmi",3)) {
 				rip_cmi=1;
 			}
+			/* -dumb-poi-interval */
+			else if (!strncmp(p,"dumb-poi-interval",17)) {
+				i++;
+				if (i >= argc) return 0;
+				rip_dumbpoi_interval = atoi(argv[i]);
+			}
 			/* -dumb-poi */
 			else if (!strncmp(p,"dumb-poi",8)) {
 				poi_dumb=1;
@@ -255,6 +262,7 @@ int params(int argc,char **argv)
 				bitch(BITCHINFO,"-test-keystore              DIAGNOSTIC: Test KeyStorage code");
 				bitch(BITCHINFO,"-info                       Gather media info, even if already done");
 				bitch(BITCHINFO,"-rip                        Rip DVD contents, even if previously ripped");
+				bitch(BITCHINFO,"-dumb-poi-interval <N>      Run dumb auth poi interval N (default 65536)");
 				bitch(BITCHINFO,"-noskip                     Don't skip sectors in DVD ripping");
 				bitch(BITCHINFO,"-rate <N>                   Assume rip rate at Nx (N times 1x DVD rate)");
 				bitch(BITCHINFO,"-cmi                        Also copy Copyright Management Info (slow!)");
@@ -473,6 +481,7 @@ int main(int argc,char **argv)
 		session.rip_backwards_from_outermost = rip_backwards_from_outermost;
 		session.rip_expandfill = rip_expandfill;
 		session.rip_periodic = rip_periodic;
+		session.dumbpoi_interval = rip_dumbpoi_interval;
 		session.rip_cmi = rip_cmi;
 		session.force_genpoi = force_genpoi;
 		session.force_authpoi = force_authpoi;

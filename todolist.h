@@ -32,6 +32,7 @@
 #define TODO_GENPOI				400
 #define TODO_GENPOI_DUMB			401
 #define TODO_GENPOI_DVDVIDEO			402
+#define TODO_GENPOI_GAPS			403
 #define TODO_AUTHPOI				410
 
 

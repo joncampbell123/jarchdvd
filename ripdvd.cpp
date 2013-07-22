@@ -632,15 +632,80 @@ void printspc(int x)
 		printf(" ");
 }
 
-static int GenPOIi=0;
+/* Explanation: The latest copy protection trick that DVDs seem to do is
+ * to put 64 bad sectors at the start of a DVD title, then format the video
+ * in such a way that an actual DVD player will skip that part, while dumber
+ * DVD ripping tools will try and fail to obtain the title key because it
+ * always tries the first sector of a title. Our workaround is to scan the
+ * rip map, note the gaps, and add the sectors immediately surrounding the
+ * gap to the POI map, thus obtaining the title keys anyway.
+ *
+ * Seen on:
+ *
+ *    Disney/Pixar "Up" DVD
+ *    Samsara DVD */
+static void GenPOI_gaps_recurse(JarchSession *s,KeyStorage *k,RippedMap *m)
+{
+
+	unsigned char buf[8];
+	unsigned long st,ns,nmin,nmax;
+
+	for (st=0;st < s->DVD_capacity;) {
+		if (m->get(st)) {
+			st++;
+			continue;
+		}
+
+		/* found a gap. add to POI */
+		ns = st;
+		if (ns > 8UL) ns -= 8UL;
+		else ns = 0UL;
+		while (ns < st) {
+			if (k->lookup(ns,buf) == ns) {
+			}
+			else {
+				memset(buf,0,8);
+				if (k->addkey(ns,buf) < 0) {
+					bitch(BITCHERROR,"GenPOI_gaps fails to add a key");
+					return;
+				}
+				else {
+					bitch(BITCHINFO,"Added gap sector %lu",ns);
+				}
+			}
+
+			ns++;
+		}
+
+		/* skip past gap */
+		while (st < s->DVD_capacity && !m->get(st)) st++;
+
+		/* add sectors following gap to POI */
+		ns = st + 8UL;
+		while (st < ns && st < s->DVD_capacity) {
+			if (k->lookup(st,buf) == st) {
+			}
+			else {
+				memset(buf,0,8);
+				if (k->addkey(st,buf) < 0) {
+					bitch(BITCHERROR,"GenPOI_gaps fails to add a key");
+					return;
+				}
+				else {
+					bitch(BITCHINFO,"Added gap sector %lu",st);
+				}
+			}
+
+			st++;
+		}
+	}
+}
+
 static void GenPOI_dumb_recurse(JarchSession *s,KeyStorage *k,unsigned long astep,
 	unsigned long step,unsigned long min,unsigned long max,unsigned long full)
 {
 	unsigned char buf[8];
 	unsigned long st,ns,nmin,nmax;
-
-//	printspc(GenPOIi++);
-//	printf("genPOI astep=%u step=%u min=%u max=%u\n",astep,step,min,max);
 
 	if (step < astep)
 		return;
@@ -649,17 +714,12 @@ static void GenPOI_dumb_recurse(JarchSession *s,KeyStorage *k,unsigned long aste
 	ns -= ns % astep;
 
 	for (st=min;st <= max;st += step) {
-//		printspc(GenPOIi);
-//		printf("add %u\n",st);
 		if (k->lookup(st,buf) == st) {
-//			printspc(GenPOIi);
-//			printf("BAH! %u\n",st);
 		}
 		else {
 			memset(buf,0,8);
 			if (k->addkey(st,buf) < 0) {
 				bitch(BITCHERROR,"GenPOI_dumb fails to add a key");
-//				GenPOIi--;
 				return;
 			}
 		}
@@ -671,8 +731,22 @@ static void GenPOI_dumb_recurse(JarchSession *s,KeyStorage *k,unsigned long aste
 			GenPOI_dumb_recurse(s,k,astep,ns,nmin,nmax,full);
 		}
 	}
+}
 
-//	GenPOIi--;
+void GenPOI_Gaps(JarchSession *session,ImageDVDCombo *idc)
+{
+	unsigned long cur,full,step,stud;
+
+	if (session->todo->get(TODO_GENPOI_GAPS) && !session->force_genpoi)
+		return;
+	if (!session->poi_dumb)
+		return;
+
+	bitch(BITCHINFO,"*** Gaps Points of Interest engine");
+	bitch(BITCHINFO,"At the edges of each gap in the image");
+
+	GenPOI_gaps_recurse(session,idc->poi,idc->map);
+	session->todo->set(TODO_GENPOI_GAPS,1);
 }
 
 void GenPOI_Dumb(JarchSession *session,ImageDVDCombo *idc)
@@ -688,10 +762,10 @@ void GenPOI_Dumb(JarchSession *session,ImageDVDCombo *idc)
 	cur     = 0;
 	full    = session->DVD_capacity;
 	step    = 65536;
+	if (session->dumbpoi_interval > 0) step = session->dumbpoi_interval;
 	bitch(BITCHINFO,"*** Dumb Points of Interest engine");
 	bitch(BITCHINFO,"Starting at %u, every %u sector",cur,step);
 
-	GenPOIi = 0;
 	stud    = full / 2;
 	stud   -= stud % step;
 	full   -= full % step;
@@ -766,6 +840,7 @@ void GenPOI(JarchSession *session)
 	idc.poi = &poi;
 
 	GenPOI_Dumb(session,&idc);
+	GenPOI_Gaps(session,&idc);
 	GenPOI_DVDVideo(session,&idc);
 
 	if (	session->todo->get(TODO_GENPOI_DUMB) &&

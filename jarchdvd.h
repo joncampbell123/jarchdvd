@@ -28,6 +28,7 @@ public:
 	int		singlesector;
 	int		rip_expandfill;
 	int		rip_periodic;
+	int		dumbpoi_interval;
 // does the blockio object support direct SCSI commands?
 	int		bdev_scsi;
 // set by media gathering code
