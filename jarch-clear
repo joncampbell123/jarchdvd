@@ -1,0 +1,3 @@
+#!/bin/bash
+rm -fv cdrom* Jarch* AUDIO-CD.WAV
+
