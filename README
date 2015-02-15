@@ -193,3 +193,17 @@ What does the -cmi switch do?
   in current standards only one byte is used). This can be a
   waste of time and is therefore not done by default.
 
+How do I legally use this program with DVDs?
+
+  Stick to DVDs that you legally own. Do not rip rentals or
+  discs that you do not own. You can use this tool as a backup
+  for your DVD library or as an intermediate step to format
+  shifting for other devices.
+
+Can this software handle Blu-ray?
+
+  This software can be used to backup BD-R discs, but no part
+  of the AACS copy protection is implemented or supported.
+  Please consider using other software better suited to Bluray
+  backup like MakeMKV or AnyDVD HD.
+
