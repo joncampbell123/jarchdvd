@@ -473,6 +473,48 @@ void RipDVDStatus(JarchSession *session)
 	bitch(BITCHINFO,"%u sectors out of %u have been ripped",ripped,session->DVD_capacity);
 }
 
+void WaitReady(JarchSession *session)
+{
+	unsigned char cmd[12],*sense;
+
+	bitch(BITCHINFO,"Wait for drive ready");
+
+	do {
+		memset(cmd,0,12); /* all zeros: TEST UNIT READY */
+		if (session->bdev->scsi(cmd,6,NULL,0,0) < 0) {
+			sense = session->bdev->get_last_sense(NULL);
+
+			if ((sense[2]&0xF) == 2 && sense[12] == 0x3A) {
+				// medium not present. wait.
+				bitch(BITCHINFO,"Medium not present");
+				usleep(1000000);
+			}
+			else if ((sense[2]&0xF) == 2 && sense[12] == 0x04 && sense[13] == 0x01) {
+				// medium becoming available
+				bitch(BITCHINFO,"Medium becoming available");
+				usleep(1000000);
+			}
+			else if ((sense[2]&0xF) == 6 && sense[12] == 0x28 && sense[13] == 0x00) {
+				// medium ready
+				bitch(BITCHINFO,"Ready");
+				break;
+			}
+			else if ((sense[2]&0xF) == 0) {
+				// ok fine
+				bitch(BITCHINFO,"Ready");
+				break;
+			}
+			else {
+				/* problem */
+			}
+		}
+		else {
+			bitch(BITCHINFO,"Ready");
+			break;
+		}
+	} while (1);
+}
+
 int main(int argc,char **argv)
 {
 	JarchSession session;
@@ -568,6 +610,7 @@ int main(int argc,char **argv)
 			return 1;
 		}
 
+		session.bdev = chosen_bio;
 		if (!css_decrypt_inplace && !show_todo) {
 			// open blockio
 			if (chosen_bio->open(chosen_input_block_dev) < 0) {
@@ -575,6 +618,9 @@ int main(int argc,char **argv)
 				delete chosen_bio;
 				return 1;
 			}
+
+			// wait for drive ready
+			WaitReady(&session);
 
 			// does the blockio object support direct SCSI commands?
 			session.bdev_scsi = 0;
@@ -602,7 +648,6 @@ int main(int argc,char **argv)
 		// setup session object
 		session.dvdauth = dvd;
 		session.todo = todo;
-		session.bdev = chosen_bio;
 		session.chosen_force_info = chosen_force_info;
 		session.chosen_force_rip = chosen_force_rip;
 		session.rip_noskip = rip_noskip;

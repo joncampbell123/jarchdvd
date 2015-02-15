@@ -38,6 +38,7 @@
 #include "jarchcd.h"
 #include "lsimage.h"
 #include "rippedmap.h"
+#include "mediagather.h"
 #include "todolist.h"
 
 #include <stdint.h>
@@ -1956,6 +1957,48 @@ void RipCD(JarchSession *session)
 			leftover);
 }
 
+void WaitReady(JarchSession *session)
+{
+	unsigned char cmd[12],*sense;
+
+	bitch(BITCHINFO,"Wait for drive ready");
+
+	do {
+		memset(cmd,0,12); /* all zeros: TEST UNIT READY */
+		if (session->bdev->scsi(cmd,6,NULL,0,0) < 0) {
+			sense = session->bdev->get_last_sense(NULL);
+
+			if ((sense[2]&0xF) == 2 && sense[12] == 0x3A) {
+				// medium not present. wait.
+				bitch(BITCHINFO,"Medium not present");
+				usleep(1000000);
+			}
+			else if ((sense[2]&0xF) == 2 && sense[12] == 0x04 && sense[13] == 0x01) {
+				// medium becoming available
+				bitch(BITCHINFO,"Medium becoming available");
+				usleep(1000000);
+			}
+			else if ((sense[2]&0xF) == 6 && sense[12] == 0x28 && sense[13] == 0x00) {
+				// medium ready
+				bitch(BITCHINFO,"Ready");
+				break;
+			}
+			else if ((sense[2]&0xF) == 0) {
+				// ok fine
+				bitch(BITCHINFO,"Ready");
+				break;
+			}
+			else {
+				/* problem */
+			}
+		}
+		else {
+			bitch(BITCHINFO,"Ready");
+			break;
+		}
+	} while (1);
+}
+
 int main(int argc,char **argv)
 {
 	JarchSession session;
@@ -2085,6 +2128,9 @@ int main(int argc,char **argv)
 		session.singlesector = singlesector;
 
 		if (!css_decrypt_inplace && !show_todo) {
+			// wait for drive ready
+			WaitReady(&session);
+
 			// Use various MMC commands to examine the DVD-ROM media!
 			GatherMediaInfo(&session);
 
