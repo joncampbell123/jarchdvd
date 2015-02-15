@@ -69,10 +69,130 @@ static int			show_todo=0;
 static int			poi_dumb=0;
 static int			singlesector=0;
 static string			driver_name;
+static int			do_eject=0;
 // test modes are:
 //   0 = no test
 //   1 = KeyStorage test
 //   2 = RippedMap test
+
+void DoEject(JarchSession *session)
+{
+	unsigned char cmd[12],*sense;
+
+	chosen_bio = blockiodefault(driver_name.length() != 0 ? driver_name.c_str() : NULL);
+	if (!chosen_bio) {
+		bitch(BITCHERROR,"Unable to obtain default JarchBlockIO object");
+		return;
+	}
+	session->bdev = chosen_bio;
+
+	// open blockio
+	if (chosen_bio->open(chosen_input_block_dev) < 0) {
+		bitch(BITCHERROR,"Unable to open device %s",chosen_input_block_dev);
+		delete chosen_bio;
+		return;
+	}
+
+	// does the blockio object support direct SCSI commands?
+	session->bdev_scsi = 0;
+	if (chosen_bio->scsi(NULL,0,NULL,0,0) == 0) {
+		bitch(BITCHINFO,"BlockIO code supports direct SCSI commands");
+		session->bdev_scsi = 1;
+	}
+
+	/* *sigh* drives want us to test unit ready */
+	do {
+		memset(cmd,0,12); /* all zeros: TEST UNIT READY */
+		if (session->bdev->scsi(cmd,6,NULL,0,0) < 0) {
+			sense = session->bdev->get_last_sense(NULL);
+
+			if ((sense[2]&0xF) == 2 && sense[12] == 0x3A) {
+				// medium not present. fine.
+				break;
+			}
+			else if ((sense[2]&0xF) == 6 && sense[12] == 0x28) {
+				// medium ready
+				break;
+			}
+
+			bitch(BITCHWARNING,"Not ready");
+			bitch(BITCHWARNING,"SENSE: %02x %02x %02x %02x  %02x %02x %02x %02x  %02x %02x %02x %02x  %02x %02x %02x %02x",
+				sense[ 0],sense[ 1],sense[ 2],sense[ 3],
+				sense[ 4],sense[ 5],sense[ 6],sense[ 7],
+				sense[ 8],sense[ 9],sense[10],sense[11],
+				sense[12],sense[13],sense[14],sense[15]);
+
+			memset(sense,0,12);
+		}
+		else {
+			bitch(BITCHINFO,"Drive ready");
+			break;
+		}
+	} while (1);
+
+	memset(cmd,0,12);
+	cmd[ 0] = 0x1E;	// PREVENT ALLOW MEDIUM REMOVAL
+	if (session->bdev->scsi(cmd,6,NULL,0,0) < 0) {
+		sense = session->bdev->get_last_sense(NULL);
+
+		bitch(BITCHWARNING,"Failed to unlock");
+		bitch(BITCHWARNING,"SENSE: %02x %02x %02x %02x  %02x %02x %02x %02x  %02x %02x %02x %02x  %02x %02x %02x %02x",
+			sense[ 0],sense[ 1],sense[ 2],sense[ 3],
+			sense[ 4],sense[ 5],sense[ 6],sense[ 7],
+			sense[ 8],sense[ 9],sense[10],sense[11],
+			sense[12],sense[13],sense[14],sense[15]);
+
+		memset(sense,0,12);
+	}
+	else {
+		bitch(BITCHINFO,"Unlock");
+	}
+
+	memset(cmd,0,12);
+	cmd[ 0] = 0x1B;	// START/STOP UNIT
+	cmd[ 4] = (0 << 1)/*LoEj*/ + (0 << 0)/*Start*/;
+	if (session->bdev->scsi(cmd,6,NULL,0,0) < 0) {
+		sense = session->bdev->get_last_sense(NULL);
+
+		bitch(BITCHWARNING,"Failed to stop disc");
+		bitch(BITCHWARNING,"SENSE: %02x %02x %02x %02x  %02x %02x %02x %02x  %02x %02x %02x %02x  %02x %02x %02x %02x",
+			sense[ 0],sense[ 1],sense[ 2],sense[ 3],
+			sense[ 4],sense[ 5],sense[ 6],sense[ 7],
+			sense[ 8],sense[ 9],sense[10],sense[11],
+			sense[12],sense[13],sense[14],sense[15]);
+
+		memset(sense,0,12);
+	}
+	else {
+		bitch(BITCHINFO,"Stop");
+	}
+
+	memset(cmd,0,12);
+	cmd[ 0] = 0x1B;	// START/STOP UNIT
+	cmd[ 4] = (1 << 1)/*LoEj*/ + (0 << 0)/*Start*/;
+	if (session->bdev->scsi(cmd,6,NULL,0,0) >= 0) {
+		bitch(BITCHINFO,"Disc ejected");
+	}
+	else {
+		sense = session->bdev->get_last_sense(NULL);
+
+		bitch(BITCHWARNING,"Failed to eject disc");
+		bitch(BITCHWARNING,"SENSE: %02x %02x %02x %02x  %02x %02x %02x %02x  %02x %02x %02x %02x  %02x %02x %02x %02x",
+			sense[ 0],sense[ 1],sense[ 2],sense[ 3],
+			sense[ 4],sense[ 5],sense[ 6],sense[ 7],
+			sense[ 8],sense[ 9],sense[10],sense[11],
+			sense[12],sense[13],sense[14],sense[15]);
+
+		memset(sense,0,12);
+	}
+
+	// close blockio
+	if (chosen_bio) {
+		chosen_bio->close();
+		delete chosen_bio;
+		chosen_bio = NULL;
+	}
+}
 
 void DoTestMode()
 {
@@ -231,6 +351,10 @@ int params(int argc,char **argv)
 				if (i >= argc) return 0;
 				rip_periodic = atoi(argv[i]);
 			}
+			/* -eject */
+			else if (!strncmp(p,"eject",5)) {
+				do_eject = 1;
+			}
 			/* -test-... */
 			else if (!strncmp(p,"test-",5)) {
 				p += 5;
@@ -278,6 +402,7 @@ int params(int argc,char **argv)
 				bitch(BITCHINFO,"-expandfill                 Use expanding fill rip method");
 				bitch(BITCHINFO,"-periodic <n>               Rip only every nth sector");
 				bitch(BITCHINFO,"-single                     Rip single sectors only");
+				bitch(BITCHINFO,"-eject                      Eject CD-ROM tray");
 				return 0;
 			}
 		}
@@ -417,6 +542,10 @@ int main(int argc,char **argv)
 	// are we doing a test mode?
 	if (chosen_test_mode > 0) {
 		DoTestMode();
+	}
+	// eject
+	else if (do_eject) {
+		DoEject(&session);
 	}
 	else {
 		// now get the default blockio object IF not -decss
