@@ -864,7 +864,7 @@ void RipCD(JarchSession *session)
 	juint64 byteo;
 	unsigned long cur,full,rate,expsect,isect,pfull,lastend,adjsect,backwards_next;
 	unsigned long last_recover,first_recover,leftover;
-	unsigned char *buf,*sense,cmd[12],sector[(RAWSEC+RAWSUB)*2];
+	unsigned char *buf,*sense=NULL,cmd[12],sector[(RAWSEC+RAWSUB)*2];
 	time_t start,expect,curt,prep;
 	int rd,rdmax,percent,sz,got,i;
 	double d1,d2;
@@ -1959,7 +1959,7 @@ void RipCD(JarchSession *session)
 
 void WaitReady(JarchSession *session)
 {
-	unsigned char cmd[12],*sense;
+	unsigned char cmd[12],*sense=NULL;
 
 	bitch(BITCHINFO,"Wait for drive ready");
 
