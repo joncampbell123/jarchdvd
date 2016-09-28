@@ -102,6 +102,7 @@ void DoEject(JarchSession *session)
 
 	/* *sigh* drives want us to test unit ready */
 	do {
+		errno = 0;
 		memset(cmd,0,12); /* all zeros: TEST UNIT READY */
 		if (session->bdev->scsi(cmd,6,NULL,0,0) < 0) {
 			sense = session->bdev->get_last_sense(NULL);
@@ -117,10 +118,10 @@ void DoEject(JarchSession *session)
 
 			bitch(BITCHWARNING,"Not ready");
 			bitch(BITCHWARNING,"SENSE: %02x %02x %02x %02x  %02x %02x %02x %02x  %02x %02x %02x %02x  %02x %02x %02x %02x",
-				sense[ 0],sense[ 1],sense[ 2],sense[ 3],
-				sense[ 4],sense[ 5],sense[ 6],sense[ 7],
-				sense[ 8],sense[ 9],sense[10],sense[11],
-				sense[12],sense[13],sense[14],sense[15]);
+					sense[ 0],sense[ 1],sense[ 2],sense[ 3],
+					sense[ 4],sense[ 5],sense[ 6],sense[ 7],
+					sense[ 8],sense[ 9],sense[10],sense[11],
+					sense[12],sense[13],sense[14],sense[15]);
 
 			memset(sense,0,12);
 		}
@@ -130,61 +131,81 @@ void DoEject(JarchSession *session)
 		}
 	} while (1);
 
-	memset(cmd,0,12);
-	cmd[ 0] = 0x1E;	// PREVENT ALLOW MEDIUM REMOVAL
-	if (session->bdev->scsi(cmd,6,NULL,0,0) < 0) {
-		sense = session->bdev->get_last_sense(NULL);
+	do {
+		errno = 0;
+		memset(cmd,0,12);
+		cmd[ 0] = 0x1E;	// PREVENT ALLOW MEDIUM REMOVAL
+		if (session->bdev->scsi(cmd,6,NULL,0,0) < 0) {
+			sense = session->bdev->get_last_sense(NULL);
 
-		bitch(BITCHWARNING,"Failed to unlock");
-		bitch(BITCHWARNING,"SENSE: %02x %02x %02x %02x  %02x %02x %02x %02x  %02x %02x %02x %02x  %02x %02x %02x %02x",
-			sense[ 0],sense[ 1],sense[ 2],sense[ 3],
-			sense[ 4],sense[ 5],sense[ 6],sense[ 7],
-			sense[ 8],sense[ 9],sense[10],sense[11],
-			sense[12],sense[13],sense[14],sense[15]);
+			bitch(BITCHWARNING,"Failed to unlock");
+			bitch(BITCHWARNING,"SENSE: %02x %02x %02x %02x  %02x %02x %02x %02x  %02x %02x %02x %02x  %02x %02x %02x %02x",
+					sense[ 0],sense[ 1],sense[ 2],sense[ 3],
+					sense[ 4],sense[ 5],sense[ 6],sense[ 7],
+					sense[ 8],sense[ 9],sense[10],sense[11],
+					sense[12],sense[13],sense[14],sense[15]);
 
-		memset(sense,0,12);
-	}
-	else {
-		bitch(BITCHINFO,"Unlock");
-	}
+			memset(sense,0,12);
 
-	memset(cmd,0,12);
-	cmd[ 0] = 0x1B;	// START/STOP UNIT
-	cmd[ 4] = (0 << 1)/*LoEj*/ + (0 << 0)/*Start*/;
-	if (session->bdev->scsi(cmd,6,NULL,0,0) < 0) {
-		sense = session->bdev->get_last_sense(NULL);
+			if (errno != EBUSY)
+				break;
+		}
+		else {
+			bitch(BITCHINFO,"Unlock");
+			break;
+		}
+	} while (1);
 
-		bitch(BITCHWARNING,"Failed to stop disc");
-		bitch(BITCHWARNING,"SENSE: %02x %02x %02x %02x  %02x %02x %02x %02x  %02x %02x %02x %02x  %02x %02x %02x %02x",
-			sense[ 0],sense[ 1],sense[ 2],sense[ 3],
-			sense[ 4],sense[ 5],sense[ 6],sense[ 7],
-			sense[ 8],sense[ 9],sense[10],sense[11],
-			sense[12],sense[13],sense[14],sense[15]);
+	do {
+		errno = 0;
+		memset(cmd,0,12);
+		cmd[ 0] = 0x1B;	// START/STOP UNIT
+		cmd[ 4] = (0 << 1)/*LoEj*/ + (0 << 0)/*Start*/;
+		if (session->bdev->scsi(cmd,6,NULL,0,0) < 0) {
+			sense = session->bdev->get_last_sense(NULL);
 
-		memset(sense,0,12);
-	}
-	else {
-		bitch(BITCHINFO,"Stop");
-	}
+			bitch(BITCHWARNING,"Failed to stop disc");
+			bitch(BITCHWARNING,"SENSE: %02x %02x %02x %02x  %02x %02x %02x %02x  %02x %02x %02x %02x  %02x %02x %02x %02x",
+					sense[ 0],sense[ 1],sense[ 2],sense[ 3],
+					sense[ 4],sense[ 5],sense[ 6],sense[ 7],
+					sense[ 8],sense[ 9],sense[10],sense[11],
+					sense[12],sense[13],sense[14],sense[15]);
 
-	memset(cmd,0,12);
-	cmd[ 0] = 0x1B;	// START/STOP UNIT
-	cmd[ 4] = (1 << 1)/*LoEj*/ + (0 << 0)/*Start*/;
-	if (session->bdev->scsi(cmd,6,NULL,0,0) >= 0) {
-		bitch(BITCHINFO,"Disc ejected");
-	}
-	else {
-		sense = session->bdev->get_last_sense(NULL);
+			memset(sense,0,12);
 
-		bitch(BITCHWARNING,"Failed to eject disc");
-		bitch(BITCHWARNING,"SENSE: %02x %02x %02x %02x  %02x %02x %02x %02x  %02x %02x %02x %02x  %02x %02x %02x %02x",
-			sense[ 0],sense[ 1],sense[ 2],sense[ 3],
-			sense[ 4],sense[ 5],sense[ 6],sense[ 7],
-			sense[ 8],sense[ 9],sense[10],sense[11],
-			sense[12],sense[13],sense[14],sense[15]);
+			if (errno != EBUSY)
+				break;
+		}
+		else {
+			bitch(BITCHINFO,"Stop");
+			break;
+		}
+	} while (1);
 
-		memset(sense,0,12);
-	}
+	do {
+		memset(cmd,0,12);
+		cmd[ 0] = 0x1B;	// START/STOP UNIT
+		cmd[ 4] = (1 << 1)/*LoEj*/ + (0 << 0)/*Start*/;
+		if (session->bdev->scsi(cmd,6,NULL,0,0) >= 0) {
+			bitch(BITCHINFO,"Disc ejected");
+			break;
+		}
+		else {
+			sense = session->bdev->get_last_sense(NULL);
+
+			bitch(BITCHWARNING,"Failed to eject disc");
+			bitch(BITCHWARNING,"SENSE: %02x %02x %02x %02x  %02x %02x %02x %02x  %02x %02x %02x %02x  %02x %02x %02x %02x",
+					sense[ 0],sense[ 1],sense[ 2],sense[ 3],
+					sense[ 4],sense[ 5],sense[ 6],sense[ 7],
+					sense[ 8],sense[ 9],sense[10],sense[11],
+					sense[12],sense[13],sense[14],sense[15]);
+
+			memset(sense,0,12);
+
+			if (errno != EBUSY)
+				break;
+		}
+	} while (1);
 
 	// close blockio
 	if (chosen_bio) {
