@@ -54,9 +54,12 @@ try_again:
 	dev_fd = ::open(name,O_RDWR | O_LARGEFILE | O_NONBLOCK | O_EXCL);
 	if (dev_fd < 0) {
 		bitch(BITCHERROR,"JarchBlockIO_SG: Unable to open block device %s (errno = %s)",name,strerror(errno));
-		if (errno == EBUSY && --retry > 0) {
-			sleep(1);
-			goto try_again;
+		if (errno == EBUSY) {
+			if (--retry > 0) {
+				bitch(BITCHERROR,"Will try again... retry=%d",retry);
+				sleep(1);
+				goto try_again;
+			}
 		}
 		return -1;
 	}
