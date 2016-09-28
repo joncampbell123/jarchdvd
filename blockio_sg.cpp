@@ -32,6 +32,7 @@ JarchBlockIO_SG::~JarchBlockIO_SG()
 
 int JarchBlockIO_SG::open(const char *given_name)
 {
+	int retry;
 	const char *name;
 
 	if (dev_fd >= 0)
@@ -48,9 +49,15 @@ int JarchBlockIO_SG::open(const char *given_name)
 	bitch(BITCHINFO,"JarchBlockIO_SG: Linux SG_IO ioctl driver");
 	bitch(BITCHINFO,"JarchBlockIO_SG: Using device %s",name);
 
+	retry = 3;
+try_again:
 	dev_fd = ::open(name,O_RDWR | O_LARGEFILE | O_NONBLOCK | O_EXCL);
 	if (dev_fd < 0) {
 		bitch(BITCHERROR,"JarchBlockIO_SG: Unable to open block device %s (errno = %s)",name,strerror(errno));
+		if (errno == EBUSY && --retry > 0) {
+			sleep(1);
+			goto try_again;
+		}
 		return -1;
 	}
 
