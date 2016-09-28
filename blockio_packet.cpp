@@ -31,6 +31,7 @@ JarchBlockIO_PK::~JarchBlockIO_PK()
 
 int JarchBlockIO_PK::open(const char *given_name)
 {
+	int retry;
 	const char *name;
 
 	if (dev_fd >= 0)
@@ -47,9 +48,18 @@ int JarchBlockIO_PK::open(const char *given_name)
 	bitch(BITCHINFO,"JarchBlockIO_PK: Linux CDROM_PACKET ioctl driver");
 	bitch(BITCHINFO,"JarchBlockIO_PK: Using device %s",name);
 
+	retry = 3;
+try_again:
 	dev_fd = ::open(name,O_RDWR | O_LARGEFILE | O_NONBLOCK | O_EXCL);
 	if (dev_fd < 0) {
 		bitch(BITCHERROR,"JarchBlockIO_PK: Unable to open block device %s (errno = %s)",name,strerror(errno));
+		if (errno == EBUSY) {
+			if (--retry > 0) {
+				bitch(BITCHERROR,"Will try again... retry=%d",retry);
+				sleep(1);
+				goto try_again;
+			}
+		}
 		return -1;
 	}
 
