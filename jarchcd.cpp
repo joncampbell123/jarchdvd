@@ -1859,9 +1859,16 @@ void RipCD(JarchSession *session)
 		}
 	}
 
+	/* reading beyond leadin is *killing* my CD-ROM drive!
+	 * also, if the user said to start at 150, then that means he/she is not interested in lead-in */
+	unsigned long long leadin_max = 0;
+
+	if (minsector < 150)
+		leadin_max = 150 - minsector;
+
 	cur = 0;
 	bitch(BITCHINFO,"Now trying to recover lead-in");
-	while (cur < 0x10000000UL) {
+	while (cur < leadin_max) {
 		unsigned long sn = 0xFFFFFFFF - cur;
 		int rdr;
 
