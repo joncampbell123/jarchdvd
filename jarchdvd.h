@@ -35,6 +35,7 @@ public:
 	int		DVD_layers;
 // set by DVD ripping code
 	unsigned long	DVD_capacity;
+    int     minsector;
 };
 
 #endif //__MAIN_H

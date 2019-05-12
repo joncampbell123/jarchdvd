@@ -68,6 +68,7 @@ static int			css_decrypt_inplace=0;
 static int			show_todo=0;
 static int			poi_dumb=0;
 static int			singlesector=0;
+static int			minsector=0;
 static string			driver_name;
 static int			do_eject=0;
 // test modes are:
@@ -353,6 +354,12 @@ int params(int argc,char **argv)
 			/* -todo */
 			else if (!strncmp(p,"todo",4)) {
 				show_todo=1;
+			}
+            /* -min <x> */
+			else if (!strncmp(p,"min",3)) {
+				i++;
+				if (i >= argc) return 0;
+				minsector = atoi(argv[i]);
 			}
 			/* -backwards */
 			else if (!strncmp(p,"backwards",9)) {
@@ -669,6 +676,7 @@ int main(int argc,char **argv)
 		// setup session object
 		session.dvdauth = dvd;
 		session.todo = todo;
+        session.minsector = minsector;
 		session.chosen_force_info = chosen_force_info;
 		session.chosen_force_rip = chosen_force_rip;
 		session.rip_noskip = rip_noskip;

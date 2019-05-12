@@ -259,6 +259,10 @@ void RipDVD(JarchSession *session)
 		return;
 	}
 
+    /* minsector */
+    if (cur < session->minsector)
+        cur = session->minsector;
+
 	/* start off by skipping sectors we've already ripped */
 	while (cur < full && dvdmap.get(cur)) cur++;
 
