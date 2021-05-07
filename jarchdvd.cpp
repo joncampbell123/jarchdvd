@@ -507,38 +507,38 @@ void WaitReady(JarchSession *session)
 
 	bitch(BITCHINFO,"Wait for drive ready");
 
+	/* NTS: I found a DVD-ROM drive in a Dell laptop where bdev->scsi() == 0 even if
+	 *      no disc is in the drive, which is why this code now always checks sense
+	 *      instead of checking sense only if bdev->scsi() returns < 0. */
 	do {
 		memset(cmd,0,12); /* all zeros: TEST UNIT READY */
-		if (session->bdev->scsi(cmd,6,NULL,0,0) < 0) {
-			sense = session->bdev->get_last_sense(NULL);
+		session->bdev->scsi(cmd,6,NULL,0,0);
+		sense = session->bdev->get_last_sense(NULL);
 
-			if ((sense[2]&0xF) == 2 && sense[12] == 0x3A) {
-				// medium not present. wait.
-				bitch(BITCHINFO,"Medium not present");
-				usleep(1000000);
-			}
-			else if ((sense[2]&0xF) == 2 && sense[12] == 0x04 && sense[13] == 0x01) {
-				// medium becoming available
-				bitch(BITCHINFO,"Medium becoming available");
-				usleep(1000000);
-			}
-			else if ((sense[2]&0xF) == 6 && sense[12] == 0x28 && sense[13] == 0x00) {
-				// medium ready
-				bitch(BITCHINFO,"Ready");
-				break;
-			}
-			else if ((sense[2]&0xF) == 0) {
-				// ok fine
-				bitch(BITCHINFO,"Ready");
-				break;
-			}
-			else {
-				/* problem */
-			}
+		if ((sense[2]&0xF) == 2 && sense[12] == 0x3A) {
+			// medium not present. wait.
+			bitch(BITCHINFO,"Medium not present");
+			usleep(1000000);
 		}
-		else {
+		else if ((sense[2]&0xF) == 2 && sense[12] == 0x04 && sense[13] == 0x01) {
+			// medium becoming available
+			bitch(BITCHINFO,"Medium becoming available");
+			usleep(1000000);
+		}
+		else if ((sense[2]&0xF) == 6 && sense[12] == 0x28 && sense[13] == 0x00) {
+			// medium ready
 			bitch(BITCHINFO,"Ready");
 			break;
+		}
+		else if ((sense[2]&0xF) == 0) {
+			// ok fine
+			bitch(BITCHINFO,"Ready");
+			break;
+		}
+		else {
+			/* problem */
+			bitch(BITCHINFO,"Unknown sense code %02x (%02x%02x%02x%02x)",sense[2],sense[0],sense[1],sense[2],sense[3]);
+			usleep(1000000);
 		}
 	} while (1);
 }
