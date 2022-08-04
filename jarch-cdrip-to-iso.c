@@ -2,6 +2,8 @@
 #include <fcntl.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <string.h>
+#include <stdlib.h>
 
 unsigned char sector[2352];
 
@@ -118,12 +120,48 @@ static uint32_t edc_compute(
     return edc;
 }
 
+static void help(void) {
+	fprintf(stderr,"-h --help      Help\n");
+	fprintf(stderr,"-s <N>         Start sector of first data sector (default 150)\n");
+}
+
 int main(int argc,char **argv) {
 	int video = 0,video2 = 0;
 	unsigned long sec,chk;
 	int skip = 150;
 	char name[32];
 	int ofd = -1;
+
+	{
+		int i = 1;
+		char *a;
+
+		while (i < argc) {
+			a = argv[i++];
+
+			if (*a == '-') {
+				do { a++; } while (*a == '-');
+
+				if (!strcmp(a,"h") || !strcmp(a,"help")) {
+					help();
+					return 1;
+				}
+				else if (!strcmp(a,"s")) {
+					a = argv[i++];
+					if (a == NULL) return 1;
+					skip = atoi(a);
+				}
+				else {
+					fprintf(stderr,"Unknown switch %s\n");
+					return 1;
+				}
+			}
+			else {
+				fprintf(stderr,"Unexpected arg\n");
+				return 1;
+			}
+		}
+	}
 
 	if (isatty(1)) {
 		fprintf(stderr,"You need to redirect STDOUT\n");
