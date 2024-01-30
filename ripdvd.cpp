@@ -65,6 +65,10 @@ void RipDVDPeriodic(JarchSession *session,RippedMap *map,LargeSplitImage *dvd)
 	int rd = 0,ard,j,refound=1;
 	juint64 fofs;
 
+    /* minsector */
+    if (cur < session->minsector)
+        cur = session->minsector;
+
 	while (cur < max) {
 		/* look for gaps */
 		while (cur < max && map->get(cur)) cur++;
@@ -108,6 +112,10 @@ void RipDVDExpandFill(JarchSession *session,RippedMap *map,LargeSplitImage *dvd)
 	unsigned char *buffer = session->bdev->buffer();
 	int rdmax = (!session->singlesector ? session->bdev->buffersize() : 1);
 	int rd = 0;
+
+    /* minsector */
+    if (cur < session->minsector)
+        cur = session->minsector;
 
 	bitch(BITCHINFO,"Using expansion fill rip method.");
 	bitch(BITCHINFO,"Locates an \"island\" of ripped sectors surrounded by unripped sectors");
